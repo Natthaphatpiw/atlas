@@ -39,7 +39,7 @@ export default function ConditionPage() {
   const storedSession = useMemo(() => parseStoredSession(storedSessionRaw), [storedSessionRaw]);
   const [questions, setQuestions] = useState<ConditionQuestion[] | null>(null);
   const [answerOverrides, setAnswerOverrides] = useState<Record<string, ConditionAnswer>>({});
-  const [questionIndex, setQuestionIndex] = useState(0);
+  const [questionIndex, setQuestionIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!storedSession) {
@@ -56,14 +56,23 @@ export default function ConditionPage() {
     });
   }, [storedSession]);
 
-  const currentQuestion = questions?.[questionIndex];
   const persistedAnswers = useMemo(
     () => Object.fromEntries((storedSession?.session.conditionAnswers ?? []).map((answer) => [answer.questionId, answer])),
     [storedSession],
   );
   const answers = useMemo(() => ({ ...persistedAnswers, ...answerOverrides }), [answerOverrides, persistedAnswers]);
+  const initialQuestionIndex = useMemo(() => {
+    if (!questions) {
+      return 0;
+    }
+
+    const firstUnansweredIndex = questions.findIndex((question) => !answers[question.id]);
+    return firstUnansweredIndex === -1 ? questions.length : firstUnansweredIndex;
+  }, [answers, questions]);
+  const activeQuestionIndex = questionIndex ?? initialQuestionIndex;
+  const currentQuestion = questions?.[activeQuestionIndex];
   const isLoadingQuestions = Boolean(storedSession) && questions === null;
-  const isComplete = Boolean(storedSession) && questions !== null && questionIndex >= questions.length;
+  const isComplete = Boolean(storedSession) && questions !== null && activeQuestionIndex >= questions.length;
   const currentAnswer = currentQuestion ? answers[currentQuestion.id] : undefined;
 
   useEffect(() => {
@@ -97,7 +106,7 @@ export default function ConditionPage() {
     }
 
     const nextAnswers = { ...answers, [currentQuestion.id]: currentAnswer };
-    const isLastQuestion = questionIndex === (questions?.length ?? 0) - 1;
+    const isLastQuestion = activeQuestionIndex === (questions?.length ?? 0) - 1;
 
     analyticsService.track({
       eventName: "condition_question_answered",
@@ -118,12 +127,12 @@ export default function ConditionPage() {
       });
     }
 
-    setQuestionIndex((current) => current + 1);
+    setQuestionIndex((current) => (current ?? activeQuestionIndex) + 1);
   };
 
   const handleBack = () => {
-    if (questionIndex > 0) {
-      setQuestionIndex((current) => current - 1);
+    if (activeQuestionIndex > 0) {
+      setQuestionIndex((current) => (current ?? activeQuestionIndex) - 1);
       return;
     }
 
@@ -213,13 +222,13 @@ export default function ConditionPage() {
               <div>
                 <div className="mb-5 flex items-center justify-between gap-4">
                   <p className="text-xs font-medium text-slate-500">
-                    คำถาม {questionIndex + 1} จาก {questions.length}
+                    คำถาม {activeQuestionIndex + 1} จาก {questions.length}
                   </p>
                   <div className="flex-1" aria-hidden="true">
                     <div className="h-0.5 rounded-full bg-slate-200">
                       <div
                         className="h-0.5 rounded-full bg-[var(--color-brand-primary)] transition-[width] duration-300"
-                        style={{ width: `${((questionIndex + 1) / questions.length) * 100}%` }}
+                        style={{ width: `${((activeQuestionIndex + 1) / questions.length) * 100}%` }}
                       />
                     </div>
                   </div>
