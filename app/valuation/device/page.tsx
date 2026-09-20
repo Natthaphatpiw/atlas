@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { mockDevices } from "@/adapters/mock/devices";
 import { AppShell } from "@/components/app-shell";
 import type { Device, DeviceCategory } from "@/domain/types";
+import { createDeviceSession, saveValuationSession } from "@/lib/valuation-session";
 
 type SelectionStage = "category" | "brand" | "model" | "specs" | "complete";
 type SpecKey = keyof Device["specs"];
@@ -132,6 +132,13 @@ export default function DevicePage() {
   const editStage = (stage: SelectionStage) => {
     setEditingStage(stage);
     setSearchQuery("");
+  };
+
+  const handleContinue = () => {
+    if (selectedDevice) {
+      saveValuationSession(createDeviceSession(selectedDevice));
+      router.push("/valuation/condition");
+    }
   };
 
   return (
@@ -361,12 +368,13 @@ export default function DevicePage() {
 
         {isComplete ? (
           <div className="mt-6 pt-2">
-            <Link
-              href="/valuation/condition"
+            <button
+              type="button"
+              onClick={handleContinue}
               className="flex w-full items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-brand-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
             >
               ดำเนินการต่อ →
-            </Link>
+            </button>
           </div>
         ) : null}
       </div>

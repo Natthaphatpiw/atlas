@@ -40,6 +40,13 @@ export interface ConditionQuestion {
   id: string;
   category: DeviceCategory;
   prompt: string;
+  title?: string;
+  topic?: "exterior" | "display" | "functional" | "battery" | "device_specific";
+  description?: string;
+  answerType?: "single-choice";
+  required?: boolean;
+  applicableCategories?: DeviceCategory[];
+  analyticsId?: string;
   weight: number;
   options: Array<{
     label: string;
