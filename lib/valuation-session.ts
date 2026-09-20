@@ -1,4 +1,4 @@
-import type { ConditionAnswer, Device, SessionStatus, ValuationSession } from "@/domain/types";
+import type { ConditionAnswer, Device, ExpectedPrice, SessionStatus, ValuationSession } from "@/domain/types";
 
 const storageKey = "atlast.valuation.session";
 
@@ -64,6 +64,35 @@ export function updateConditionAnswers(
       ...storedSession.session,
         status,
       conditionAnswers,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+
+  saveValuationSession(updatedSession);
+  return updatedSession;
+}
+
+export function updateExpectedPrice(amount: number) {
+  const storedSession = readValuationSession();
+
+  if (!storedSession) {
+    return null;
+  }
+
+  const expectedPrice: ExpectedPrice = {
+    amount,
+    currency: "THB",
+    enteredBy: "seller",
+    source: "manual_entry",
+    createdAt: new Date().toISOString(),
+  };
+
+  const updatedSession: StoredValuationSession = {
+    ...storedSession,
+    session: {
+      ...storedSession.session,
+      status: "expected_price_entered",
+      expectedPrice,
       updatedAt: new Date().toISOString(),
     },
   };
