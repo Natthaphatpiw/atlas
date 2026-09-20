@@ -39,4 +39,14 @@ export class MockValuationService implements ValuationService {
       generatedAt: new Date().toISOString(),
     };
   }
+
+  async getMockValuationResult(session: ValuationSession): Promise<{ minPrice: number; maxPrice: number; currency: "THB" }> {
+    void session;
+
+    return {
+      minPrice: 24500,
+      maxPrice: 27000,
+      currency: "THB",
+    };
+  }
 }
