@@ -1,23 +1,411 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { mockDevices } from "@/adapters/mock/devices";
 import { AppShell } from "@/components/app-shell";
+import type { Device, DeviceCategory } from "@/domain/types";
+
+type SelectionStage = "category" | "brand" | "model" | "specs" | "complete";
+type SpecKey = keyof Device["specs"];
+
+const categoryMeta: Record<DeviceCategory, { label: string; icon: string; description: string }> = {
+  phone: { label: "โทรศัพท์มือถือ", icon: "📱", description: "มือถือและสมาร์ทโฟน" },
+  tablet: { label: "แท็บเล็ต", icon: "📲", description: "แท็บเล็ตและไอแพด" },
+  laptop: { label: "แล็ปท็อป", icon: "💻", description: "โน้ตบุ๊กและคอมพิวเตอร์" },
+  watch: { label: "สมาร์ทวอทช์", icon: "⌚", description: "นาฬิกาอัจฉริยะ" },
+  audio: { label: "อุปกรณ์เสียง", icon: "🎧", description: "หูฟังและลำโพง" },
+  other: { label: "อื่น ๆ", icon: "🧩", description: "อุปกรณ์ประเภทอื่น" },
+};
+
+const specLabels: Record<string, string> = {
+  storage: "ความจุ",
+  color: "สี",
+  network: "เครือข่าย",
+  ram: "หน่วยความจำ",
+  displaySize: "ขนาดหน้าจอ",
+};
+
+const progressSteps = ["สินค้า", "สภาพ", "ราคาที่ต้องการ", "ผลประเมิน"];
 
 export default function DevicePage() {
+  const router = useRouter();
+  const [selectedCategory, setSelectedCategory] = useState<DeviceCategory | "">("");
+  const [selectedBrand, setSelectedBrand] = useState("");
+  const [selectedModel, setSelectedModel] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [specSelections, setSpecSelections] = useState<Record<string, string>>({});
+  const [editingStage, setEditingStage] = useState<SelectionStage | null>(null);
+
+  const visibleDevices = useMemo(
+    () => (selectedCategory ? mockDevices.filter((device) => device.category === selectedCategory) : []),
+    [selectedCategory],
+  );
+
+  const brands = useMemo(
+    () => Array.from(new Set(visibleDevices.map((device) => device.brand))).sort(),
+    [visibleDevices],
+  );
+
+  const displayedModels = useMemo(
+    () =>
+      visibleDevices.filter(
+        (device) =>
+          device.brand === selectedBrand &&
+          [device.model, device.variant ?? ""].join(" ").toLowerCase().includes(searchQuery.toLowerCase()),
+      ),
+    [searchQuery, selectedBrand, visibleDevices],
+  );
+
+  const selectedDevice = useMemo(
+    () => displayedModels.find((device) => device.model === selectedModel) ?? null,
+    [displayedModels, selectedModel],
+  );
+
+  const selectedSpecs = selectedDevice
+    ? (Object.entries(selectedDevice.specs).filter(([, value]) => value) as [SpecKey, string][])
+    : [];
+
+  const isSpecsComplete =
+    selectedSpecs.length > 0 && selectedSpecs.every(([key]) => Boolean(specSelections[key]));
+
+  const activeStage: SelectionStage = !selectedCategory
+    ? "category"
+    : !selectedBrand
+      ? "brand"
+      : !selectedModel || !selectedDevice
+        ? "model"
+        : !isSpecsComplete
+          ? "specs"
+          : "complete";
+
+  const stageIsOpen = (stage: SelectionStage) => activeStage === stage || editingStage === stage;
+  const isComplete = activeStage === "complete";
+
+  const handleCategoryChange = (category: DeviceCategory) => {
+    setSelectedCategory(category);
+    setSelectedBrand("");
+    setSelectedModel("");
+    setSearchQuery("");
+    setSpecSelections({});
+    setEditingStage(null);
+  };
+
+  const handleBrandChange = (brand: string) => {
+    setSelectedBrand(brand);
+    setSelectedModel("");
+    setSpecSelections({});
+    setEditingStage(null);
+  };
+
+  const handleModelChange = (model: string) => {
+    setSelectedModel(model);
+    setSpecSelections({});
+    setEditingStage(null);
+  };
+
+  const handleSpecChange = (key: string, value: string) => {
+    setSpecSelections((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleBack = () => {
+    if (editingStage) {
+      setEditingStage(null);
+      return;
+    }
+
+    if (activeStage === "brand") {
+      setSelectedCategory("");
+    } else if (activeStage === "model") {
+      setSelectedBrand("");
+      setSelectedModel("");
+      setSpecSelections({});
+    } else if (activeStage === "specs" || activeStage === "complete") {
+      setSelectedModel("");
+      setSpecSelections({});
+    } else {
+      router.push("/");
+    }
+  };
+
+  const editStage = (stage: SelectionStage) => {
+    setEditingStage(stage);
+    setSearchQuery("");
+  };
+
   return (
     <AppShell
-      title="Device / model / specification"
-      description="Select the device and basic specification before moving to the condition assessment."
+      title="เลือกสินค้าที่ต้องการประเมินราคา"
+      description="เลือกประเภทสินค้าเพื่อเริ่มต้น"
+      compactHeader
+      backAction={
+        <button
+          type="button"
+          onClick={handleBack}
+          aria-label="ย้อนกลับ"
+          className="rounded-full p-1 text-xl text-slate-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
+        >
+          ←
+        </button>
+      }
     >
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <p className="text-sm text-slate-600">Placeholder route for the device selection step.</p>
-        <div className="mt-6 flex gap-3">
-          <Link href="/valuation" className="rounded-full border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
-            Back
-          </Link>
-          <Link href="/valuation/condition" className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800">
-            Continue
-          </Link>
+      <div className="mx-auto max-w-[820px]">
+        <div className="mb-8 flex items-center gap-2" aria-label="ความคืบหน้าการประเมินราคา">
+          {progressSteps.map((step, index) => (
+            <div key={step} className="flex min-w-0 flex-1 items-center gap-2">
+              <div
+                className={[
+                  "h-1.5 flex-1 rounded-full",
+                  index === 0 ? "bg-[var(--color-brand-primary)]" : "bg-slate-200",
+                ].join(" ")}
+              />
+              <span
+                className={[
+                  "hidden whitespace-nowrap text-xs sm:block",
+                  index === 0 ? "font-semibold text-slate-900" : "text-slate-400",
+                ].join(" ")}
+              >
+                {step}
+              </span>
+            </div>
+          ))}
         </div>
+
+        <section className="space-y-3">
+          {selectedCategory && !stageIsOpen("category") ? (
+            <SelectionRow
+              label="ประเภทสินค้า"
+              value={categoryMeta[selectedCategory].label}
+              onEdit={() => editStage("category")}
+            />
+          ) : null}
+
+          {stageIsOpen("category") ? (
+            <div className="border-b border-slate-200 pb-8">
+              <StageHeading eyebrow="เริ่มต้น" title="เลือกประเภทสินค้า" />
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {(Object.entries(categoryMeta) as [DeviceCategory, (typeof categoryMeta)[DeviceCategory]][]).map(
+                  ([category, meta]) => {
+                    const isSelected = selectedCategory === category;
+                    return (
+                      <button
+                        key={category}
+                        type="button"
+                        onClick={() => handleCategoryChange(category)}
+                        aria-pressed={isSelected}
+                        className={[
+                          "group rounded-3xl border p-4 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
+                          isSelected
+                            ? "border-[var(--color-brand-primary)] bg-[var(--color-brand-primary-soft)]"
+                            : "border-slate-200 bg-white hover:border-[var(--color-brand-primary)] hover:bg-[var(--color-surface-subtle)]",
+                        ].join(" ")}
+                      >
+                        <span className="flex items-center justify-between gap-3">
+                          <span className="flex items-center gap-3">
+                            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-50 text-xl" aria-hidden="true">
+                              {meta.icon}
+                            </span>
+                            <span>
+                              <span className="block font-semibold text-slate-900">{meta.label}</span>
+                              <span className="mt-0.5 block text-xs text-slate-500">{meta.description}</span>
+                            </span>
+                          </span>
+                          {isSelected ? (
+                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-brand-primary)] text-sm text-white" aria-label="เลือกแล้ว">
+                              ✓
+                            </span>
+                          ) : null}
+                        </span>
+                      </button>
+                    );
+                  },
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {selectedBrand && !stageIsOpen("brand") ? (
+            <SelectionRow label="ยี่ห้อ" value={selectedBrand} onEdit={() => editStage("brand")} />
+          ) : null}
+
+          {stageIsOpen("brand") ? (
+            <div className="border-b border-slate-200 pb-8">
+              <StageHeading eyebrow="ขั้นตอนถัดไป" title="เลือกยี่ห้อ" />
+              <div className="flex flex-wrap gap-2">
+                {brands.length > 0 ? (
+                  brands.map((brand) => (
+                    <button
+                      key={brand}
+                      type="button"
+                      onClick={() => handleBrandChange(brand)}
+                      aria-pressed={selectedBrand === brand}
+                      className={[
+                        "rounded-full border px-5 py-2.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
+                        selectedBrand === brand
+                          ? "border-[var(--color-brand-primary)] bg-[var(--color-brand-primary-soft)] text-slate-900"
+                          : "border-slate-200 bg-white text-slate-700 hover:border-[var(--color-brand-primary)]",
+                      ].join(" ")}
+                    >
+                      {brand}
+                    </button>
+                  ))
+                ) : (
+                  <p className="text-sm text-slate-500">ยังไม่มีข้อมูลยี่ห้อสำหรับหมวดหมู่นี้</p>
+                )}
+              </div>
+            </div>
+          ) : null}
+
+          {selectedModel && selectedDevice && !stageIsOpen("model") ? (
+            <SelectionRow
+              label="รุ่น"
+              value={selectedDevice.model}
+              onEdit={() => editStage("model")}
+            />
+          ) : null}
+
+          {stageIsOpen("model") ? (
+            <div className="border-b border-slate-200 pb-8">
+              <StageHeading eyebrow="ขั้นตอนถัดไป" title="เลือกรุ่น" />
+              <label className="block">
+                <span className="sr-only">ค้นหารุ่น</span>
+                <input
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="ค้นหาชื่อรุ่น"
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900 shadow-[0_8px_24px_rgba(10,26,22,0.04)] outline-none transition focus:border-[var(--color-brand-primary)] focus:ring-2 focus:ring-[var(--color-brand-primary-glow)]"
+                />
+              </label>
+
+              {displayedModels.length === 0 ? (
+                <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-8 text-center">
+                  <p className="font-medium text-slate-700">ไม่พบรุ่นที่ตรงกับคำค้นหา</p>
+                  <p className="mt-1 text-sm text-slate-500">ลองเปลี่ยนคำค้นหา หรือเลือกยี่ห้ออื่น</p>
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="mt-4 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                  >
+                    ล้างการค้นหา
+                  </button>
+                </div>
+              ) : (
+                <div className="mt-4 space-y-2">
+                  {displayedModels.map((device) => (
+                    <button
+                      key={device.id}
+                      type="button"
+                      onClick={() => handleModelChange(device.model)}
+                      aria-pressed={selectedModel === device.model}
+                      className={[
+                        "flex w-full items-center justify-between rounded-2xl border px-4 py-3.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
+                        selectedModel === device.model
+                          ? "border-[var(--color-brand-primary)] bg-[var(--color-brand-primary-soft)]"
+                          : "border-slate-200 bg-white hover:border-[var(--color-brand-primary)]",
+                      ].join(" ")}
+                    >
+                      <span>
+                        <span className="block font-semibold text-slate-900">{device.model}</span>
+                        <span className="mt-1 block text-sm text-slate-500">
+                          {device.brand} · {categoryMeta[device.category].label}
+                          {device.variant ? ` · ${device.variant}` : ""}
+                        </span>
+                      </span>
+                      {selectedModel === device.model ? (
+                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-brand-primary)] text-sm text-white" aria-label="เลือกแล้ว">
+                          ✓
+                        </span>
+                      ) : null}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          {selectedDevice && isSpecsComplete && !stageIsOpen("specs") ? (
+            <SelectionRow
+              label="ข้อมูลจำเป็น"
+              value={formatSpecs(selectedSpecs, specSelections)}
+              onEdit={() => editStage("specs")}
+            />
+          ) : null}
+
+          {stageIsOpen("specs") && selectedDevice ? (
+            <div className="border-b border-slate-200 pb-8">
+              <StageHeading eyebrow="ขั้นตอนสุดท้าย" title="เลือกข้อมูลจำเป็น" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                {selectedSpecs.map(([key, value]) => (
+                  <div key={key} className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-sm font-medium text-slate-700">{specLabels[key] ?? key}</p>
+                    <button
+                      type="button"
+                      onClick={() => handleSpecChange(key, value)}
+                      aria-pressed={specSelections[key] === value}
+                      className={[
+                        "mt-3 w-full rounded-full border px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
+                        specSelections[key] === value
+                          ? "border-[var(--color-brand-primary)] bg-white text-slate-900"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-[var(--color-brand-primary)]",
+                      ].join(" ")}
+                    >
+                      {value}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        {isComplete ? (
+          <div className="mt-6 pt-2">
+            <Link
+              href="/valuation/condition"
+              className="flex w-full items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-brand-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
+            >
+              ดำเนินการต่อ →
+            </Link>
+          </div>
+        ) : null}
       </div>
     </AppShell>
   );
+}
+
+function SelectionRow({ label, value, onEdit }: { label: string; value: string; onEdit: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-slate-200 py-3">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-primary-soft)] text-sm font-semibold text-[var(--color-brand-primary-hover)]">
+          ✓
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-slate-500">{label}</p>
+          <p className="truncate font-semibold text-slate-900">{value}</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={onEdit}
+        className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-[var(--color-brand-primary-hover)] hover:bg-[var(--color-brand-primary-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
+      >
+        แก้ไข
+      </button>
+    </div>
+  );
+}
+
+function StageHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
+  return (
+    <div className="mb-5">
+      <p className="text-sm font-medium text-[var(--color-brand-primary-hover)]">{eyebrow}</p>
+      <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{title}</h2>
+    </div>
+  );
+}
+
+function formatSpecs(specs: [SpecKey, string][], selections: Record<string, string>) {
+  return specs.map(([key, value]) => selections[key] ?? value).join(" · ");
 }
