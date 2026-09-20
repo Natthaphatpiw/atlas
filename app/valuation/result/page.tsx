@@ -7,7 +7,7 @@ import { MockValuationService } from "@/adapters/mock/valuation";
 import { AppShell } from "@/components/app-shell";
 import type { Device } from "@/domain/types";
 import { type MockValuationResult } from "@/services/valuation-service";
-import { type StoredValuationSession } from "@/lib/valuation-session";
+import { hasReachedStage, type StoredValuationSession } from "@/lib/valuation-session";
 
 const valuationProgress = ["สินค้า", "สภาพ", "ราคาที่ต้องการ", "ผลประเมิน"];
 const storageKey = "atlast.valuation.session";
@@ -41,7 +41,7 @@ export default function ResultPage() {
     storedSession?.device &&
       storedSession.session.conditionAnswers.length > 0 &&
       storedSession.session.expectedPrice &&
-      storedSession.session.status === "expected_price_entered",
+      hasReachedStage(storedSession.session.status, "expected_price_entered"),
   );
 
   useEffect(() => {
