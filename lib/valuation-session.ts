@@ -2,6 +2,20 @@ import type { ConditionAnswer, Device, ExpectedPrice, SessionStatus, ValuationSe
 
 const storageKey = "atlast.valuation.session";
 
+const sessionStages: SessionStatus[] = [
+  "draft",
+  "device_selected",
+  "condition_completed",
+  "expected_price_entered",
+  "estimated",
+  "lead_collected",
+  "handoff_ready",
+];
+
+export function hasReachedStage(status: SessionStatus | undefined, stage: SessionStatus) {
+  return status !== undefined && sessionStages.indexOf(status) >= sessionStages.indexOf(stage);
+}
+
 export interface StoredValuationSession {
   session: ValuationSession;
   device: Device;
@@ -62,7 +76,11 @@ export function updateConditionAnswers(
     ...storedSession,
     session: {
       ...storedSession.session,
-        status,
+      status:
+        JSON.stringify(storedSession.session.conditionAnswers) === JSON.stringify(conditionAnswers) &&
+        hasReachedStage(storedSession.session.status, status)
+          ? storedSession.session.status
+          : status,
       conditionAnswers,
       updatedAt: new Date().toISOString(),
     },
@@ -79,6 +97,12 @@ export function updateExpectedPrice(amount: number) {
     return null;
   }
 
+  // Revisiting a completed step without changing its value preserves later progress.
+  if (storedSession.session.expectedPrice?.amount === amount &&
+      hasReachedStage(storedSession.session.status, "expected_price_entered")) {
+    return storedSession;
+  }
+
   const expectedPrice: ExpectedPrice = {
     amount,
     currency: "THB",
@@ -93,6 +117,29 @@ export function updateExpectedPrice(amount: number) {
       ...storedSession.session,
       status: "expected_price_entered",
       expectedPrice,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+
+  saveValuationSession(updatedSession);
+  return updatedSession;
+}
+
+export function markLeadCollected(sessionId: string) {
+  const storedSession = readValuationSession();
+
+  if (!storedSession || storedSession.session.id !== sessionId ||
+      !hasReachedStage(storedSession.session.status, "expected_price_entered")) {
+    return null;
+  }
+
+  const updatedSession: StoredValuationSession = {
+    ...storedSession,
+    session: {
+      ...storedSession.session,
+      status: hasReachedStage(storedSession.session.status, "lead_collected")
+        ? storedSession.session.status
+        : "lead_collected",
       updatedAt: new Date().toISOString(),
     },
   };

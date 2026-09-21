@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { AppShell } from "@/components/app-shell";
 import type { Device } from "@/domain/types";
-import { updateExpectedPrice, type StoredValuationSession } from "@/lib/valuation-session";
+import { hasReachedStage, updateExpectedPrice, type StoredValuationSession } from "@/lib/valuation-session";
 
 const valuationProgress = ["สินค้า", "สภาพ", "ราคาที่ต้องการ", "ผลประเมิน"];
 const storageKey = "atlast.valuation.session";
@@ -49,8 +49,7 @@ export default function ExpectedPricePage() {
     numericAmount > 0;
   const hasCompletedPrerequisites =
     Boolean(storedSession?.device) &&
-    (storedSession?.session.status === "condition_completed" ||
-      storedSession?.session.status === "expected_price_entered");
+    hasReachedStage(storedSession?.session.status, "condition_completed");
   const prerequisiteRoute = storedSession?.device ? "/valuation/condition" : "/valuation/device";
 
   const handleInputChange = (value: string) => {
