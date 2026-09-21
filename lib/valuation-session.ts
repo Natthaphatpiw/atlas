@@ -147,3 +147,29 @@ export function markLeadCollected(sessionId: string) {
   saveValuationSession(updatedSession);
   return updatedSession;
 }
+
+// Ready means the frontend continuation screen is prepared, not that LINE is connected.
+export function markHandoffReady(sessionId: string) {
+  const storedSession = readValuationSession();
+
+  if (!storedSession || storedSession.session.id !== sessionId ||
+      !hasReachedStage(storedSession.session.status, "lead_collected")) {
+    return null;
+  }
+
+  if (hasReachedStage(storedSession.session.status, "handoff_ready")) {
+    return storedSession;
+  }
+
+  const updatedSession: StoredValuationSession = {
+    ...storedSession,
+    session: {
+      ...storedSession.session,
+      status: "handoff_ready",
+      updatedAt: new Date().toISOString(),
+    },
+  };
+
+  saveValuationSession(updatedSession);
+  return updatedSession;
+}
