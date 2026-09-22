@@ -1,34 +1,38 @@
-# Astly Handoff Contract (Future Only)
+# Future LINE and Astly Continuation
 
-This document defines a placeholder contract for a possible future Astly integration. It does not represent an implemented feature in the Atlast MVP.
+## Current Frontend MVP boundary
 
-## Status
-- Not implemented
-- Not required for the MVP
-- Not connected to current flow
+Atlast currently implements a seller valuation/contact journey ending at a prepared continuation screen. It has:
 
-## Purpose
-If Atlast later needs to pass a seller or lead to Astly, the data should be transferred using a clean, explicit boundary and typed payloads.
+- no real LINE integration or generic LINE redirect;
+- no durable Lead or operational Handoff record;
+- no LINE identity/token or delivery acknowledgement;
+- no Astly integration;
+- no payment, KYC or matching;
+- no approved production valuation algorithm.
 
-## Future handoff boundary
-```ts
-interface AstlyHandoffPayload {
-  source: "atlast";
-  sessionId: string;
-  leadId?: string;
-  deviceId?: string;
-  estimatedAmount?: number;
-  expectedAmount?: number;
-  createdAt: string;
-}
-```
+The Handoff button only reveals an intentional LINE availability message. `handoff_ready` means browser-local context is prepared; `handoff_started` describes that screen lifecycle, not external delivery. No fake redirect/completion analytics are emitted.
 
-## Future responsibilities
-- Atlast sends only validated business data.
-- Astly owns downstream operational handling.
-- Atlast remains a separate frontend product in this phase.
+## Future conceptual sequence
+
+Atlast → future LINE OA continuation → possible future operational/Astly integration.
+
+This is a conceptual boundary, not an implemented integration or settled delivery design. Atlast remains a separate product. Possible Astly responsibilities concern downstream operational handling and need agreement when that integration is commissioned.
+
+## Provisional payload considerations
+
+Earlier candidate fields were `source: "atlast"`, `sessionId`, optional `leadId`, optional `deviceId`, optional `estimatedAmount`, optional `expectedAmount`, and `createdAt`.
+
+These are not a finalized contract:
+
+- Future persisted identifiers and authoritative timestamps must come from the backend/API, not browser-generated mock IDs.
+- The MVP has no retained durable `leadId` to send.
+- Device/configuration and questionnaire references need stable canonical identities and version treatment.
+- A single `estimatedAmount` is not settled: the current UI displays `{ minPrice, maxPrice, currency }`, a fixed mock range. Production valuation methodology, confidence, provenance and expiry remain unresolved.
+- Any transferred data requires an explicit purpose and validated typed boundary; a generic payload placeholder does not define what should be sent.
+
+LINE identity/token design, delivery acknowledgement, final Astly payload and responsibility boundaries remain future decisions. Payment, KYC and matching are not implied requirements of the current Atlast MVP.
 
 ## Guardrails
-- No Astly API calls are made in the current project.
-- No Astly integration code is added to the frontend yet.
-- No database or backend infrastructure is introduced to support this future integration.
+
+No Astly API calls or LINE integration are currently made. Backend persistence does not automatically authorize these integrations. Define and approve their contracts separately; do not infer readiness from local session statuses or mock Lead success. See API_CONTRACT.md for the separate Backend Developer handoff.

@@ -1,53 +1,79 @@
 # Atlast
 
-Atlast is a standalone responsive web application for validating customer demand for a device pawn / secured-loan service in Thailand.
+Atlast is a Thai-first, responsive seller valuation and lead-validation Frontend MVP. It collects device details, condition, expected selling price and contact consent. It is not an operational pawn/loan product.
 
-## Current status
-This repository contains the foundation scaffold only.
+## Current implementation
 
-## Included in this scaffold
-- Next.js App Router
-- TypeScript
-- Tailwind CSS
-- responsive/mobile-first base layout
-- domain TypeScript types
-- service interfaces
-- mock adapters
-- mock valuation service
-- analytics event contract
-- minimal application shell
-- placeholder routes for the valuation funnel
-- product and technical documentation
+- Next.js 16.3.5 App Router, React 19, TypeScript and Tailwind CSS 4.
+- Progressive device selection, saved Condition answers, safe-integer THB price entry, preliminary results, Lead Capture and a prepared continuation screen.
+- Valuation progress lives in browser `sessionStorage`, not a backend.
+- Result, Lead and Handoff share a fixed mock ฿24,500–฿27,000 range. The unused demo formula is not production pricing.
+- Lead submission returns a mock object without durable storage. LINE only shows an availability placeholder.
+- No backend/database, Supabase, authentication, real LINE, Astly or production valuation engine is implemented.
 
-## Explicit exclusions
-- No Supabase
-- No database
-- No backend infrastructure
-- No authentication
-- No LINE integration
-- No Astly integration
-- No production valuation algorithm
+## Seller routes
 
-## Core product flow
-1. Landing
-2. Valuation start
-3. Device / model / specification
-4. Condition assessment
-5. Expected price
-6. Valuation result
-7. Lead / contact capture
-8. Atlast LINE OA handoff boundary
+| Route | Purpose |
+| --- | --- |
+| `/` | Landing |
+| `/valuation` | Redirects to `/valuation/device`; no separate start screen |
+| `/valuation/device` | Category, brand, model and specs |
+| `/valuation/condition` | Category-specific questionnaire and review |
+| `/valuation/expected-price` | Expected selling price in integer THB |
+| `/valuation/result` | Preliminary mock range |
+| `/valuation/lead` | Name, phone and required contact consent |
+| `/valuation/handoff` | Prepared LINE continuation with intentional placeholder |
 
-## Technology notes
-- Market: Thailand
-- Currency: THB
-- Use mock services and mock data only for the MVP stage
-- Keep all future backend integration behind service interfaces and adapters
+`/design-preview/a`, `/design-preview/b` and `/design-preview/c` are development/design artifacts, not steps in the seller flow.
 
-## Run locally
+## Architecture
+
+- `app/`: routes and page UI.
+- `components/`: shared shell, modal and design-preview components.
+- `domain/`: TypeScript domain and analytics types.
+- `services/`: valuation, Lead and analytics interfaces.
+- `adapters/mock/`: fixture catalog/questions, fixed range, mock Lead and console analytics.
+- `lib/valuation-session.ts`: browser-local `{ session, device }`, progress updates and device identity comparison.
+
+Pages currently instantiate mock adapters; Device reads mock catalog data directly. Future persistence/API should sit behind these boundaries. Same device ID/spec configuration preserves session progress; a changed configuration restarts dependent state. Backend authority and unresolved decisions are described in API_CONTRACT.md and DATA_MODEL.md.
+
+## Run and validate
+
 ```bash
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000
+Open http://localhost:3000.
+
+```bash
+npm run lint
+git diff --check
+npm run build
+npm run start
+```
+
+An observed environment-specific Turbopack failure reports `binding to a port — Operation not permitted (os error 1)`. It is not a universal application failure. When that environment prevents the default build, the established verification fallback is:
+
+```bash
+npm run build -- --webpack
+```
+
+Do not change project configuration merely to work around that environment issue. Record materially different failures separately.
+
+## Branch workflow
+
+- Frozen external tester baseline: `qa/mvp-flow-v1` at `5bdfc85`. Its shared Preview must remain unchanged during continued development; do not commit or push new changes to that branch.
+- Continued development: `develop/mvp-v2`, created from the frozen baseline.
+- This separation does not imply a production merge. No deployment URL is specified here.
+- `lib/valuation-session 2.ts` is a known unrelated untracked duplicate. Do not modify, stage, delete, rename or commit it.
+
+## Documentation and backend handoff
+
+- PRODUCT.md: implemented seller MVP versus future business direction.
+- DATA_MODEL.md: current local model and future authoritative persistence requirements.
+- API_CONTRACT.md: service boundaries, analytics semantics, provisional APIs and Backend Developer decisions.
+- ASTLY_HANDOFF.md: future LINE/operational integration boundary.
+- AGENTS.md: development constraints; consult the installed Next.js guides before source changes.
+
+Backend work must not derive production pricing from mock code or choose unresolved product/integration decisions implicitly. Database technology/schema and the final API design remain undecided.
