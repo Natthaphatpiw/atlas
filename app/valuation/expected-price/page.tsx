@@ -45,7 +45,7 @@ export default function ExpectedPricePage() {
     !hasInvalidCharacters &&
     priceDigits.length > 0 &&
     numericAmount !== null &&
-    Number.isFinite(numericAmount) &&
+    Number.isSafeInteger(numericAmount) &&
     numericAmount > 0;
   const hasCompletedPrerequisites =
     Boolean(storedSession?.device) &&
@@ -161,7 +161,7 @@ export default function ExpectedPricePage() {
                 type="button"
                 onClick={handleContinue}
                 disabled={!isValidAmount}
-                className="mt-5 flex w-full items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-brand-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
+                className="mt-5 flex w-full items-center justify-center rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-action-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
               >
                 ดำเนินการต่อ →
               </button>
@@ -216,7 +216,7 @@ function MissingContext({
       <button
         type="button"
         onClick={onAction}
-        className="mt-6 rounded-full bg-[var(--color-brand-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--color-brand-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
+        className="mt-6 rounded-full bg-[var(--color-action-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--color-action-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
       >
         {actionLabel}
       </button>
@@ -262,6 +262,10 @@ function getPriceInputSize(digits: string) {
 function getValidationMessage(digits: string, hasInvalidCharacters: boolean) {
   if (hasInvalidCharacters || !digits) {
     return "กรุณาระบุราคาเป็นตัวเลข";
+  }
+
+  if (!Number.isSafeInteger(Number(digits))) {
+    return "จำนวนเงินเกินช่วงที่ระบบรองรับ กรุณาระบุจำนวนเงินที่น้อยลง";
   }
 
   return "กรุณาระบุราคามากกว่า 0 บาท";

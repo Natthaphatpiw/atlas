@@ -85,6 +85,7 @@ export function HowItWorksModal() {
           role="presentation"
         >
           <div
+            id="how-it-works-modal"
             ref={dialogRef}
             role="dialog"
             aria-modal="true"
@@ -148,7 +149,7 @@ export function HowItWorksModal() {
               <div className="mt-7 flex justify-center">
                 <Link
                   href="/valuation/device"
-                  className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--color-brand-primary)] px-6 py-3.5 text-base font-semibold text-white shadow-[0_18px_40px_var(--color-brand-primary-glow)] transition-all duration-200 hover:bg-[var(--color-brand-primary-hover)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--color-brand-primary-soft)] sm:w-auto"
+                  className="group inline-flex w-full items-center justify-center gap-2 rounded-full bg-[var(--color-action-primary)] px-6 py-3.5 text-base font-semibold text-white shadow-[0_18px_40px_var(--color-brand-primary-glow)] transition-all duration-200 hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--color-brand-primary-soft)] sm:w-auto"
                   onClick={() => setIsOpen(false)}
                 >
                   <span>เริ่มประเมินราคา</span>

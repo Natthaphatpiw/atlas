@@ -151,7 +151,7 @@ export default function LeadPage() {
             <h2 className="text-xl font-semibold text-slate-900">ยังไม่มีข้อมูลครบสำหรับติดต่อกลับ</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">ทำตามขั้นตอนสินค้า สภาพ และราคาที่ต้องการให้ครบก่อนกรอกข้อมูลติดต่อ</p>
             <button type="button" onClick={() => router.push(recoveryRoute)}
-              className={`mt-6 rounded-full bg-[var(--color-brand-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--color-brand-primary-hover)] ${focusClass}`}>
+              className={`mt-6 rounded-full bg-[var(--color-action-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--color-action-primary-hover)] ${focusClass}`}>
               {recoveryLabel}
             </button>
           </div>
@@ -220,7 +220,7 @@ export default function LeadPage() {
               </fieldset>
               {submitError ? <p role="alert" className="mt-4 text-sm text-rose-700">{submitError}</p> : null}
               <button type="submit" disabled={isSubmitting}
-                className={`mt-5 flex min-h-14 w-full items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-brand-primary-hover)] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none ${focusClass}`}>
+                className={`mt-5 flex min-h-14 w-full items-center justify-center rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-action-primary-hover)] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none ${focusClass}`}>
                 {isSubmitting ? "กำลังส่งข้อมูล..." : "ส่งข้อมูลและดำเนินการต่อ →"}
               </button>
             </form>

@@ -96,7 +96,7 @@ export default function HandoffPage() {
             <h2 className="text-xl font-semibold text-slate-900">ยังส่งข้อมูลไม่ครบ</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">ประเมินสินค้าและส่งข้อมูลติดต่อให้เรียบร้อยก่อนดำเนินการต่อ</p>
             <button type="button" onClick={() => router.push(recoveryRoute)}
-              className={`mt-6 rounded-full bg-[var(--color-brand-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--color-brand-primary-hover)] ${focusClass}`}>
+              className={`mt-6 rounded-full bg-[var(--color-action-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--color-action-primary-hover)] ${focusClass}`}>
               {recoveryLabel}
             </button>
           </div>
@@ -132,7 +132,7 @@ export default function HandoffPage() {
             </section>
             <button type="button" onClick={() => setPlaceholderVisible(true)}
               aria-describedby={placeholderVisible ? "line-placeholder-message" : undefined}
-              className={`mt-7 flex min-h-14 w-full items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-brand-primary-hover)] ${focusClass}`}>
+              className={`mt-7 flex min-h-14 w-full items-center justify-center rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-action-primary-hover)] ${focusClass}`}>
               ดำเนินการต่อผ่าน LINE →
             </button>
             <div role="status" aria-live="polite" className="mt-3 min-h-12 text-center text-sm leading-6 text-slate-500">

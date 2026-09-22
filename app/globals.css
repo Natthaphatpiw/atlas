@@ -4,6 +4,8 @@
   --background: #f8fdf9;
   --foreground: #12221b;
   --color-brand-primary: #07c061;
+  --color-action-primary: #087f43;
+  --color-action-primary-hover: #066b38;
   --color-brand-primary-hover: #05ad55;
   --color-brand-primary-soft: rgba(7, 192, 97, 0.14);
   --color-brand-primary-glow: rgba(7, 192, 97, 0.18);

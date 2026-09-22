@@ -1,9 +1,26 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useRef } from "react";
+import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { HowItWorksModal } from "@/components/how-it-works-modal";
+
+const analyticsService = new MockAnalyticsService();
 
 const benefitPills = ["เลือกรุ่น", "ระบุสภาพ", "ดูราคาเบื้องต้น"];
 
 export default function Home() {
+  const viewTracked = useRef(false);
+  useEffect(() => {
+    if (viewTracked.current) return;
+    viewTracked.current = true;
+    analyticsService.track({
+      eventName: "landing_viewed",
+      route: "/",
+      timestamp: new Date().toISOString(),
+    });
+  }, []);
+
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[var(--color-background)] text-[var(--color-foreground)]">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -43,7 +60,7 @@ export default function Home() {
         <div className="mt-8 flex justify-center">
           <Link
             href="/valuation/device"
-            className="group inline-flex min-h-[60px] items-center justify-center gap-2 rounded-full bg-[var(--color-brand-primary)] px-7 py-4 text-base font-semibold text-white shadow-[0_18px_40px_var(--color-brand-primary-glow)] transition-all duration-200 hover:bg-[var(--color-brand-primary-hover)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--color-brand-primary-soft)]"
+            className="group inline-flex min-h-[60px] items-center justify-center gap-2 rounded-full bg-[var(--color-action-primary)] px-7 py-4 text-base font-semibold text-white shadow-[0_18px_40px_var(--color-brand-primary-glow)] transition-all duration-200 hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--color-brand-primary-soft)]"
           >
             <span>เริ่มประเมินราคา</span>
             <span className="text-xl transition-transform duration-200 group-hover:translate-x-0.5">→</span>

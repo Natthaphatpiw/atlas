@@ -1,11 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { mockDevices } from "@/adapters/mock/devices";
 import { AppShell } from "@/components/app-shell";
 import type { Device, DeviceCategory } from "@/domain/types";
-import { createDeviceSession, saveValuationSession } from "@/lib/valuation-session";
+import { continueWithDevice, readValuationSession, type StoredValuationSession } from "@/lib/valuation-session";
 
 type SelectionStage = "category" | "brand" | "model" | "specs" | "complete";
 type SpecKey = keyof Device["specs"];
@@ -27,15 +28,37 @@ const specLabels: Record<string, string> = {
   displaySize: "ขนาดหน้าจอ",
 };
 
+const analyticsService = new MockAnalyticsService();
+
 const progressSteps = ["สินค้า", "สภาพ", "ราคาที่ต้องการ", "ผลประเมิน"];
 
+const noSessionSubscription = () => () => undefined;
+const getStoredSessionRaw = () => window.sessionStorage.getItem("atlast.valuation.session");
+
 export default function DevicePage() {
+  const hydrated = useSyncExternalStore(noSessionSubscription, () => true, () => false);
+  const rawSession = useSyncExternalStore(noSessionSubscription, getStoredSessionRaw, () => null);
+  const savedDevice = useMemo(() => {
+    if (!rawSession) return undefined;
+    try {
+      const stored = JSON.parse(rawSession) as StoredValuationSession;
+      return mockDevices.some((device) => device.id === stored.device?.id) ? stored.device : undefined;
+    } catch {
+      return undefined;
+    }
+  }, [rawSession]);
+  if (!hydrated) return null;
+  return <DeviceSelection initialDevice={savedDevice} />;
+}
+
+function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
   const router = useRouter();
-  const [selectedCategory, setSelectedCategory] = useState<DeviceCategory | "">("");
-  const [selectedBrand, setSelectedBrand] = useState("");
-  const [selectedModel, setSelectedModel] = useState("");
+  const continuing = useRef(false);
+  const [selectedCategory, setSelectedCategory] = useState<DeviceCategory | "">(initialDevice?.category ?? "");
+  const [selectedBrand, setSelectedBrand] = useState(initialDevice?.brand ?? "");
+  const [selectedModel, setSelectedModel] = useState(initialDevice?.id ?? "");
   const [searchQuery, setSearchQuery] = useState("");
-  const [specSelections, setSpecSelections] = useState<Record<string, string>>({});
+  const [specSelections, setSpecSelections] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(initialDevice?.specs ?? {}).filter(([, value]) => Boolean(value))));
   const [editingStage, setEditingStage] = useState<SelectionStage | null>(null);
 
   const visibleDevices = useMemo(
@@ -59,8 +82,8 @@ export default function DevicePage() {
   );
 
   const selectedDevice = useMemo(
-    () => displayedModels.find((device) => device.model === selectedModel) ?? null,
-    [displayedModels, selectedModel],
+    () => mockDevices.find((device) => device.id === selectedModel) ?? null,
+    [selectedModel],
   );
 
   const selectedSpecs = selectedDevice
@@ -135,10 +158,23 @@ export default function DevicePage() {
   };
 
   const handleContinue = () => {
-    if (selectedDevice) {
-      saveValuationSession(createDeviceSession(selectedDevice));
-      router.push("/valuation/condition");
+    if (!selectedDevice || continuing.current) return;
+    continuing.current = true;
+    const previous = readValuationSession();
+    const stored = continueWithDevice({ ...selectedDevice, specs: { ...selectedDevice.specs, ...specSelections } });
+    const context = {
+      sessionId: stored.session.id,
+      route: "/valuation/device",
+      deviceCategory: stored.device.category,
+      deviceId: stored.device.id,
+      timestamp: new Date().toISOString(),
+    };
+    // A valuation starts when the seller commits a device to a new session.
+    if (previous?.session.id !== stored.session.id) {
+      analyticsService.track({ ...context, eventName: "valuation_started" });
     }
+    analyticsService.track({ ...context, eventName: "device_selected" });
+    router.push("/valuation/condition");
   };
 
   return (
@@ -303,11 +339,11 @@ export default function DevicePage() {
                     <button
                       key={device.id}
                       type="button"
-                      onClick={() => handleModelChange(device.model)}
-                      aria-pressed={selectedModel === device.model}
+                      onClick={() => handleModelChange(device.id)}
+                      aria-pressed={selectedModel === device.id}
                       className={[
                         "flex w-full items-center justify-between rounded-2xl border px-4 py-3.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
-                        selectedModel === device.model
+                        selectedModel === device.id
                           ? "border-[var(--color-brand-primary)] bg-[var(--color-brand-primary-soft)]"
                           : "border-slate-200 bg-white hover:border-[var(--color-brand-primary)]",
                       ].join(" ")}
@@ -319,7 +355,7 @@ export default function DevicePage() {
                           {device.variant ? ` · ${device.variant}` : ""}
                         </span>
                       </span>
-                      {selectedModel === device.model ? (
+                      {selectedModel === device.id ? (
                         <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-brand-primary)] text-sm text-white" aria-label="เลือกแล้ว">
                           ✓
                         </span>
@@ -371,7 +407,7 @@ export default function DevicePage() {
             <button
               type="button"
               onClick={handleContinue}
-              className="flex w-full items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-brand-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
+              className="flex w-full items-center justify-center rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-action-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
             >
               ดำเนินการต่อ →
             </button>

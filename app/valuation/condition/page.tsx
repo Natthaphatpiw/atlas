@@ -66,9 +66,9 @@ export default function ConditionPage() {
       return 0;
     }
 
-    const firstUnansweredIndex = questions.findIndex((question) => !answers[question.id]);
+    const firstUnansweredIndex = questions.findIndex((question) => !persistedAnswers[question.id]);
     return firstUnansweredIndex === -1 ? questions.length : firstUnansweredIndex;
-  }, [answers, questions]);
+  }, [persistedAnswers, questions]);
   const activeQuestionIndex = questionIndex ?? initialQuestionIndex;
   const currentQuestion = questions?.[activeQuestionIndex];
   const isLoadingQuestions = Boolean(storedSession) && questions === null;
@@ -199,7 +199,7 @@ export default function ConditionPage() {
             <button
               type="button"
               onClick={() => router.push("/valuation/device")}
-              className="mt-6 rounded-full bg-[var(--color-brand-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--color-brand-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
+              className="mt-6 rounded-full bg-[var(--color-action-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--color-action-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
             >
               เลือกสินค้า
             </button>
@@ -244,7 +244,7 @@ export default function ConditionPage() {
                 {currentQuestion.description ? <p className="mt-2 text-sm leading-6 text-slate-600">{currentQuestion.description}</p> : null}
 
                 <div className="mt-6 space-y-3" role="radiogroup" aria-label={currentQuestion.title ?? currentQuestion.prompt}>
-                  {currentQuestion.options.map((option) => {
+                  {currentQuestion.options.map((option, optionIndex) => {
                     const isSelected = currentAnswer?.answer === option.label;
                     return (
                       <button
@@ -252,6 +252,18 @@ export default function ConditionPage() {
                         type="button"
                         role="radio"
                         aria-checked={isSelected}
+                        tabIndex={isSelected || (!currentAnswer && optionIndex === 0) ? 0 : -1}
+                        onKeyDown={(event) => {
+                          const direction = ["ArrowDown", "ArrowRight"].includes(event.key)
+                            ? 1
+                            : ["ArrowUp", "ArrowLeft"].includes(event.key) ? -1 : 0;
+                          if (!direction) return;
+                          event.preventDefault();
+                          const nextIndex = (optionIndex + direction + currentQuestion.options.length) % currentQuestion.options.length;
+                          handleOptionSelect(currentQuestion, currentQuestion.options[nextIndex]);
+                          const group = event.currentTarget.parentElement;
+                          group?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[nextIndex]?.focus();
+                        }}
                         onClick={() => handleOptionSelect(currentQuestion, option)}
                         className={[
                           "flex min-h-14 w-full items-center justify-between rounded-2xl border px-4 py-3.5 text-left text-base transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
@@ -276,7 +288,7 @@ export default function ConditionPage() {
                     type="button"
                     onClick={handleContinue}
                     disabled={currentQuestion.required !== false && !currentAnswer}
-                    className="flex w-full items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-brand-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
+                    className="flex w-full items-center justify-center rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-action-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
                   >
                     ดำเนินการต่อ →
                   </button>
@@ -327,7 +339,7 @@ function ConditionReview({
       <button
         type="button"
         onClick={onContinue}
-        className="mt-8 flex w-full items-center justify-center rounded-full bg-[var(--color-brand-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-brand-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
+        className="mt-8 flex w-full items-center justify-center rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-action-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
       >
         ดำเนินการต่อ →
       </button>
