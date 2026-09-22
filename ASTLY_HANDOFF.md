@@ -2,7 +2,7 @@
 
 ## Current Frontend MVP boundary
 
-Atlast currently implements a seller valuation/contact journey ending at a prepared continuation screen. It has:
+Atlas currently implements a seller valuation/contact journey ending at a prepared continuation screen. It has:
 
 - no real LINE integration or generic LINE redirect;
 - no durable Lead or operational Handoff record;
@@ -15,9 +15,9 @@ The Handoff button only reveals an intentional LINE availability message. `hando
 
 ## Future conceptual sequence
 
-Atlast → future LINE OA continuation → possible future operational/Astly integration.
+Atlas → future LINE OA continuation → possible future operational/Astly integration.
 
-This is a conceptual boundary, not an implemented integration or settled delivery design. Atlast remains a separate product. Possible Astly responsibilities concern downstream operational handling and need agreement when that integration is commissioned.
+This is a conceptual boundary, not an implemented integration or settled delivery design. Atlas remains a separate product. Possible Astly responsibilities concern downstream operational handling and need agreement when that integration is commissioned.
 
 ## Provisional payload considerations
 
@@ -31,7 +31,7 @@ These are not a finalized contract:
 - A single `estimatedAmount` is not settled: the current UI displays `{ minPrice, maxPrice, currency }`, a fixed mock range. Production valuation methodology, confidence, provenance and expiry remain unresolved.
 - Any transferred data requires an explicit purpose and validated typed boundary; a generic payload placeholder does not define what should be sent.
 
-LINE identity/token design, delivery acknowledgement, final Astly payload and responsibility boundaries remain future decisions. Payment, KYC and matching are not implied requirements of the current Atlast MVP.
+LINE identity/token design, delivery acknowledgement, final Astly payload and responsibility boundaries remain future decisions. Payment, KYC and matching are not implied requirements of the current Atlas MVP.
 
 ## Guardrails
 

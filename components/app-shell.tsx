@@ -22,13 +22,13 @@ export function AppShell({ title, description, children, backAction, compactHead
                 </Link>
               )}
               <Link href="/" className="text-lg font-semibold tracking-tight text-slate-900">
-                Atlast
+                Atlas
               </Link>
             </>
           ) : (
             <>
               <Link href="/" className="text-lg font-semibold tracking-tight text-slate-900">
-                Atlast
+                Atlas
               </Link>
               <nav className="flex items-center gap-3 text-sm text-slate-600">
                 <Link href="/valuation" className="rounded-full border border-slate-200 px-3 py-2 hover:border-slate-300 hover:text-slate-900">
@@ -42,7 +42,7 @@ export function AppShell({ title, description, children, backAction, compactHead
 
       <main className={compactHeader ? "mx-auto max-w-4xl px-4 py-8 sm:px-6 sm:py-12" : "mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8"}>
         <div className="mb-6">
-          {!compactHeader ? <p className="text-xs font-medium uppercase tracking-[0.2em] text-sky-700">Atlast MVP</p> : null}
+          {!compactHeader ? <p className="text-xs font-medium uppercase tracking-[0.2em] text-sky-700">Atlas MVP</p> : null}
           <h1 className={compactHeader ? "text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl" : "mt-2 text-3xl font-semibold tracking-tight text-slate-900"}>{title}</h1>
           {description ? <p className={compactHeader ? "mt-3 max-w-2xl text-base leading-7 text-slate-600" : "mt-2 max-w-2xl text-sm text-slate-600"}>{description}</p> : null}
         </div>

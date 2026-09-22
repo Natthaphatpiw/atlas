@@ -1,4 +1,4 @@
-# Atlast Service Boundaries and Backend Handoff
+# Atlas Service Boundaries and Backend Handoff
 
 ## A. Current frontend service boundaries
 

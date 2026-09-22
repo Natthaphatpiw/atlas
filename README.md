@@ -1,11 +1,12 @@
-# Atlast
+# Atlas
 
-Atlast is a Thai-first, responsive seller valuation and lead-validation Frontend MVP. It collects device details, condition, expected selling price and contact consent. It is not an operational pawn/loan product.
+Atlas is a Thai-first, responsive seller valuation and lead-validation Frontend MVP. It collects device details, condition, expected selling price and contact consent. It is not an operational pawn/loan product.
 
 ## Current implementation
 
 - Next.js 16.3.5 App Router, React 19, TypeScript and Tailwind CSS 4.
 - Progressive device selection, saved Condition answers, safe-integer THB price entry, preliminary results, Lead Capture and a prepared continuation screen.
+- The mock iPhone catalog covers the 13–17 generations with model-specific storage and colors. It is frontend UX test data, not authoritative production inventory. Samsung and MacBook fixtures remain available.
 - Valuation progress lives in browser `sessionStorage`, not a backend.
 - Result, Lead and Handoff share a fixed mock ฿24,500–฿27,000 range. The unused demo formula is not production pricing.
 - Lead submission returns a mock object without durable storage. LINE only shows an availability placeholder.
@@ -63,10 +64,12 @@ Do not change project configuration merely to work around that environment issue
 
 ## Branch workflow
 
-- Frozen external tester baseline: `qa/mvp-flow-v1` at `5bdfc85`. Its shared Preview must remain unchanged during continued development; do not commit or push new changes to that branch.
+- Frozen external tester baseline: `qa/mvp-flow-v1` at `5bdfc85`. It retains the previous Atlast naming. Its shared Preview must remain unchanged during continued development; do not commit or push new changes to that branch.
 - Continued development: `develop/mvp-v2`, created from the frozen baseline.
 - This separation does not imply a production merge. No deployment URL is specified here.
 - `lib/valuation-session 2.ts` is a known unrelated untracked duplicate. Do not modify, stage, delete, rename or commit it.
+
+The Atlas rename is product-facing. The package name `atlast`, browser key `atlast.valuation.session`, and contact source `atlast_web` intentionally retain their technical names for compatibility. The earlier `source: "atlast"` candidate in ASTLY_HANDOFF.md is historical and remains unresolved.
 
 ## Documentation and backend handoff
 

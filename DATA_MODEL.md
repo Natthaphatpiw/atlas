@@ -1,4 +1,4 @@
-# Atlast Data Model
+# Atlas Data Model
 
 ## Current frontend model
 
@@ -56,7 +56,7 @@ There is no separate persisted `DeviceSelection` entity. Category, brand, model 
 
 Identity comparison uses catalog `Device.id` and equality of structured spec keys/values, not model display text. Continuing with identical identity preserves the existing session, answers, price and legitimate later status. A changed device ID or configuration creates a fresh device-selected session without previous answers or price.
 
-The mock catalog contains iPhone 15 Pro, Galaxy S24 Ultra and MacBook Air, each with one supplied configuration. Brand/model labels, spec values, `marketHints` and fixture timestamps are not a canonical backend catalog design.
+The mock catalog covers representative iPhone 13–17 models with model-specific storage and color options, plus the existing fixed Galaxy S24 Ultra and MacBook Air configurations. Mock-only `MockCatalogDevice.specOptions` supplies selectable values per spec; absent option lists fall back to the fixture’s single spec value. Confirmation stores only the selected `Device` snapshot, without option lists. Model changes clear dependent specs; changing one spec preserves the other selections. Existing iPhone 15 Pro IDs and the original 256GB / Natural Titanium / 5G configuration remain compatible with stored sessions. This is frontend UX/development data, not authoritative production inventory. Brand/model labels, spec values, `marketHints` and fixture timestamps are not a canonical backend catalog design.
 
 ### ConditionQuestion and ConditionAnswer
 

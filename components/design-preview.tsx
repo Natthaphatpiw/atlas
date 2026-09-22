@@ -99,7 +99,7 @@ export function DesignPreview({ theme }: DesignPreviewProps) {
               </div>
               <div>
                 <p className="text-xl font-bold tracking-[-0.04em]" style={{ color: "var(--preview-primary-text)" }}>
-                  Atlast
+                  Atlas
                 </p>
               </div>
             </div>
@@ -563,7 +563,7 @@ export function DesignPreview({ theme }: DesignPreviewProps) {
                     Typography direction
                   </p>
                   <p className="mt-2 text-3xl font-bold tracking-[-0.06em]" style={{ color: "var(--preview-primary-text)", fontFamily: theme.fontStack }}>
-                    Atlast
+                    Atlas
                   </p>
                 </div>
                 <div>

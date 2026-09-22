@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Atlast",
-  description: "Atlast device valuation funnel foundation for Thailand.",
+  title: "Atlas",
+  description: "Atlas device valuation funnel foundation for Thailand.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

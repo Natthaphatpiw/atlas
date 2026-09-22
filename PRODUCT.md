@@ -1,14 +1,14 @@
-# Atlast Product Overview
+# Atlas Product Overview
 
 ## Current implemented Frontend MVP
 
-Atlast is a Thailand-first seller valuation and lead-validation journey. Amounts are in THB. The current implementation is not an operational pawn or secured-loan product.
+Atlas is a Thailand-first seller valuation and lead-validation journey. Amounts are in THB. The current implementation is not an operational pawn or secured-loan product.
 
 The seller journey is:
 
 Landing → Device Selection → Condition → Expected Selling Price → Preliminary Valuation → Lead Capture → prepared LINE continuation screen.
 
-- Device selection progresses through category, brand, model and structured specifications using a small mock catalog.
+- Device selection progresses through category, brand, model and structured specifications using a mock catalog with representative iPhone 13–17 models and model-specific storage and colors.
 - Condition questions are category-specific. Selecting an answer is a draft; Continue saves it and advances. Saved answers can be reviewed and edited.
 - Expected Selling Price is the seller's requested amount, not an offer or approved loan amount. Entry accepts positive safe integer baht without decimal/satang support. The technical numeric bound is not a business price maximum.
 - Preliminary Valuation displays a fixed mock range of ฿24,500–฿27,000 through `getMockValuationResult`. This fixture does not calculate a price from the selected device, condition or expected price. Result, Lead and Handoff share this boundary.
@@ -28,7 +28,7 @@ There is no approved production valuation algorithm. The older formula-based `es
 
 Selling, pawn and secured-transaction concepts remain business hypotheses for future phases. They must not be represented as operational capabilities of this seller MVP.
 
-Future continuation may follow Atlast → LINE OA → operational/Astly integration. These integrations require separate product and API decisions. Investor matching, contracts, payment, KYC, renewal interest, redemption, logistics, warehousing and staff/inspection systems are outside the current MVP.
+Future continuation may follow Atlas → LINE OA → operational/Astly integration. These integrations require separate product and API decisions. Investor matching, contracts, payment, KYC, renewal interest, redemption, logistics, warehousing and staff/inspection systems are outside the current MVP.
 
 ## Development principles
 

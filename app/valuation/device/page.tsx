@@ -76,7 +76,7 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
       visibleDevices.filter(
         (device) =>
           device.brand === selectedBrand &&
-          [device.model, device.variant ?? ""].join(" ").toLowerCase().includes(searchQuery.toLowerCase()),
+          [device.model, device.variant ?? ""].join(" ").toLowerCase().includes(searchQuery.trim().toLowerCase()),
       ),
     [searchQuery, selectedBrand, visibleDevices],
   );
@@ -91,7 +91,9 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
     : [];
 
   const isSpecsComplete =
-    selectedSpecs.length > 0 && selectedSpecs.every(([key]) => Boolean(specSelections[key]));
+    selectedSpecs.length > 0 && selectedSpecs.every(([key, value]) =>
+      (selectedDevice?.specOptions?.[key] ?? [value]).includes(specSelections[key]),
+    );
 
   const activeStage: SelectionStage = !selectedCategory
     ? "category"
@@ -158,10 +160,15 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
   };
 
   const handleContinue = () => {
-    if (!selectedDevice || continuing.current) return;
+    if (!selectedDevice || !isSpecsComplete || continuing.current) return;
     continuing.current = true;
     const previous = readValuationSession();
-    const stored = continueWithDevice({ ...selectedDevice, specs: { ...selectedDevice.specs, ...specSelections } });
+    // Option lists belong to the mock catalog, not the persisted device snapshot.
+    const { specOptions, ...deviceSnapshot } = selectedDevice;
+    void specOptions;
+    const stored = continueWithDevice({ ...deviceSnapshot, specs: Object.fromEntries(
+      selectedSpecs.map(([key]) => [key, specSelections[key]]),
+    ) });
     const context = {
       sessionId: stored.session.id,
       route: "/valuation/device",
@@ -321,6 +328,9 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
                 />
               </label>
 
+              <p className="mt-3 text-xs text-slate-500" role="status">
+                {displayedModels.length} รุ่น · ข้อมูลตัวอย่างสำหรับทดสอบ
+              </p>
               {displayedModels.length === 0 ? (
                 <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-8 text-center">
                   <p className="font-medium text-slate-700">ไม่พบรุ่นที่ตรงกับคำค้นหา</p>
@@ -334,7 +344,7 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
                   </button>
                 </div>
               ) : (
-                <div className="mt-4 space-y-2">
+                <div className="mt-4 max-h-[min(28rem,55dvh)] space-y-2 overflow-y-auto overscroll-contain p-1" role="region" aria-label="รุ่นที่ตรงกับคำค้นหา" tabIndex={0}>
                   {displayedModels.map((device) => (
                     <button
                       key={device.id}
@@ -382,19 +392,22 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
                 {selectedSpecs.map(([key, value]) => (
                   <div key={key} className="rounded-2xl bg-slate-50 p-4">
                     <p className="text-sm font-medium text-slate-700">{specLabels[key] ?? key}</p>
-                    <button
-                      type="button"
-                      onClick={() => handleSpecChange(key, value)}
-                      aria-pressed={specSelections[key] === value}
-                      className={[
-                        "mt-3 w-full rounded-full border px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
-                        specSelections[key] === value
-                          ? "border-[var(--color-brand-primary)] bg-white text-slate-900"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-[var(--color-brand-primary)]",
-                      ].join(" ")}
-                    >
-                      {value}
-                    </button>
+                    {(selectedDevice.specOptions?.[key] ?? [value]).map((option) => (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => handleSpecChange(key, option)}
+                        aria-pressed={specSelections[key] === option}
+                        className={[
+                          "mt-3 w-full rounded-full border px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
+                          specSelections[key] === option
+                            ? "border-[var(--color-brand-primary)] bg-white text-slate-900"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-[var(--color-brand-primary)]",
+                        ].join(" ")}
+                      >
+                        {option}
+                      </button>
+                    ))}
                   </div>
                 ))}
               </div>

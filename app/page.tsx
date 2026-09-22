@@ -31,11 +31,11 @@ export default function Home() {
       </div>
 
       <header className="relative z-10 mx-auto flex max-w-5xl items-center justify-between px-4 pb-0 pt-4 sm:px-6 lg:px-8 lg:pt-6">
-        <Link href="/" aria-label="Atlast home" className="flex items-center gap-3">
+        <Link href="/" aria-label="Atlas home" className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-brand-primary)] text-sm font-bold text-white shadow-[0_12px_24px_var(--color-brand-primary-glow)]">
             A
           </span>
-          <span className="text-xl font-bold tracking-[-0.06em] text-[var(--color-foreground)]">Atlast</span>
+          <span className="text-xl font-bold tracking-[-0.06em] text-[var(--color-foreground)]">Atlas</span>
         </Link>
 
         <nav className="flex items-center text-sm font-medium text-[var(--color-muted-foreground)]">
@@ -45,7 +45,7 @@ export default function Home() {
 
       <main className="relative z-10 mx-auto flex max-w-4xl flex-col items-center px-4 pb-16 pt-10 text-center sm:px-6 lg:pb-24 lg:pt-20">
         <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface)]/80 px-3 py-1.5 text-[11px] font-semibold tracking-[0.18em] text-[var(--color-muted-foreground)] uppercase backdrop-blur-sm">
-          Atlast
+          Atlas
         </span>
 
         <h1 className="mt-6 max-w-3xl text-[clamp(2.6rem,8vw,6rem)] font-bold leading-[0.92] tracking-[-0.09em] text-[var(--color-foreground)]">
@@ -54,7 +54,7 @@ export default function Home() {
         </h1>
 
         <p className="mt-6 max-w-xl text-base leading-7 text-[var(--color-muted-foreground)] sm:text-lg">
-          Atlast ช่วยให้คุณเห็นช่วงราคาประเมินเบื้องต้นจากรุ่นและสภาพอุปกรณ์ก่อนตัดสินใจขายหรือแลกเปลี่ยน
+          Atlas ช่วยให้คุณเห็นช่วงราคาประเมินเบื้องต้นจากรุ่นและสภาพอุปกรณ์ก่อนตัดสินใจขายหรือแลกเปลี่ยน
         </p>
 
         <div className="mt-8 flex justify-center">

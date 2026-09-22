@@ -81,7 +81,7 @@ export default function HandoffPage() {
   return (
     <AppShell
       title="ดำเนินการต่อผ่าน LINE"
-      description="ขั้นตอนถัดไปสามารถดำเนินการต่อผ่าน LINE ของ Atlast"
+      description="ขั้นตอนถัดไปสามารถดำเนินการต่อผ่าน LINE ของ Atlas"
       compactHeader
       backAction={
         <button type="button" onClick={() => router.push("/valuation/lead")} aria-label="ย้อนกลับ"

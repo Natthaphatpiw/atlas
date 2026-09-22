@@ -213,7 +213,7 @@ export default function LeadPage() {
                       onChange={(event) => { setConsent(event.target.checked); setTouched((current) => ({ ...current, consent: true })); }}
                       aria-invalid={showConsentError} aria-describedby={showConsentError ? "lead-consent-error" : undefined}
                       className={`mt-0.5 h-5 w-5 shrink-0 accent-[var(--color-brand-primary)] ${focusClass}`} />
-                    <span>ยินยอมให้ Atlast ติดต่อกลับเกี่ยวกับการประเมินสินค้านี้</span>
+                    <span>ยินยอมให้ Atlas ติดต่อกลับเกี่ยวกับการประเมินสินค้านี้</span>
                   </label>
                   {showConsentError ? <p id="lead-consent-error" aria-live="polite" className="mt-1 text-sm text-rose-700">{consentError}</p> : null}
                 </div>

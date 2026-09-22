@@ -100,7 +100,7 @@ export function HowItWorksModal() {
                     id="how-it-works-title"
                     className="text-[clamp(1.8rem,3vw,2.5rem)] font-semibold tracking-[-0.08em] text-[var(--color-foreground)]"
                   >
-                    วิธีใช้ Atlast
+                    วิธีใช้ Atlas
                   </h2>
                   <p className="mt-2 max-w-[34rem] text-sm leading-6 text-[var(--color-muted-foreground)] sm:text-[15px]">
                     ประเมินราคาเบื้องต้นได้ใน 3 ขั้นตอนง่ายๆ
