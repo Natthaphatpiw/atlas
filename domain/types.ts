@@ -1,3 +1,4 @@
+import type { MockRequestReceipt } from "./valuation-request";
 import type { SellerAssessment } from "./assessment";
 
 export type CurrencyCode = "THB";
@@ -17,7 +18,8 @@ export type SessionStatus =
   | "expected_price_entered"
   | "estimated"
   | "lead_collected"
-  | "handoff_ready";
+  | "handoff_ready"
+  | "request_submitted";
 
 export type ConditionScore = "excellent" | "good" | "fair" | "poor";
 
@@ -96,6 +98,7 @@ export interface ValuationSession {
   /** Legacy v1 snapshots, retained only for recovery; never scored for v2. */
   conditionAnswers: ConditionAnswer[];
   assessment?: SellerAssessment;
+  request?: MockRequestReceipt;
   expectedPrice?: ExpectedPrice;
   estimatedPrice?: EstimatedPrice;
   createdAt: string;
@@ -148,6 +151,10 @@ export type AnalyticsEventName =
   | "valuation_result_viewed"
   | "seller_proceeded"
   | "seller_declined"
+  | "seller_contact_viewed"
+  | "valuation_request_submitted"
+  | "line_connect_viewed"
+  | "line_connect_started"
   | "lead_submitted"
   | "handoff_started"
   | "handoff_completed"

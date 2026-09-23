@@ -1,3 +1,4 @@
+import type { MockRequestReceipt, RequestContext } from "@/domain/valuation-request";
 import { getMockAssessment } from "@/adapters/mock/assessment";
 import type { AssessmentAnswer, AssessmentDefinition } from "@/domain/assessment";
 import { answerIdentity, assessmentComplete, isCurrentAssessment, pruneAnswers } from "@/lib/assessment";
@@ -13,6 +14,7 @@ const sessionStages: SessionStatus[] = [
   "estimated",
   "lead_collected",
   "handoff_ready",
+  "request_submitted",
 ];
 
 export function hasReachedStage(status: SessionStatus | undefined, stage: SessionStatus) {
@@ -42,6 +44,7 @@ export function createDeviceSession(device: Device): StoredValuationSession {
 
 export function saveValuationSession(storedSession: StoredValuationSession) {
   if (typeof window !== "undefined") {
+    if (readValuationSession()?.session?.request) throw new Error("Submitted request cannot be edited");
     window.sessionStorage.setItem(storageKey, JSON.stringify(storedSession));
   }
 }
@@ -77,7 +80,7 @@ export function hasCompletedAssessment(stored: StoredValuationSession | null | u
 
 export function saveAssessmentAnswers(definition: AssessmentDefinition, answers: AssessmentAnswer[], reviewed = false) {
   const stored = readValuationSession();
-  if (!stored) return null;
+  if (!stored || stored.session.request) return null;
   const currentDefinition = getMockAssessment(stored.device);
   if (currentDefinition.id !== definition.id || currentDefinition.version !== definition.version) return null;
   const clean = pruneAnswers(currentDefinition, stored.device, answers);
@@ -110,7 +113,7 @@ export function saveAssessmentAnswers(definition: AssessmentDefinition, answers:
 export function updateExpectedPrice(amount: number) {
   const storedSession = readValuationSession();
 
-  if (!storedSession || !hasCompletedAssessment(storedSession)) {
+  if (!storedSession || storedSession.session.request || !hasCompletedAssessment(storedSession)) {
     return null;
   }
 
@@ -145,7 +148,7 @@ export function updateExpectedPrice(amount: number) {
 export function markLeadCollected(sessionId: string) {
   const storedSession = readValuationSession();
 
-  if (!storedSession || !hasCompletedAssessment(storedSession) || storedSession.session.id !== sessionId ||
+  if (!storedSession || storedSession.session.request || !hasCompletedAssessment(storedSession) || storedSession.session.id !== sessionId ||
       !hasReachedStage(storedSession.session.status, "expected_price_entered")) {
     return null;
   }
@@ -169,7 +172,7 @@ export function markLeadCollected(sessionId: string) {
 export function markHandoffReady(sessionId: string) {
   const storedSession = readValuationSession();
 
-  if (!storedSession || !hasCompletedAssessment(storedSession) || storedSession.session.id !== sessionId ||
+  if (!storedSession || storedSession.session.request || !hasCompletedAssessment(storedSession) || storedSession.session.id !== sessionId ||
       !hasReachedStage(storedSession.session.status, "lead_collected")) {
     return null;
   }
@@ -201,6 +204,7 @@ export function hasSameDeviceConfiguration(left: Device, right: Device) {
 
 export function continueWithDevice(device: Device) {
   const existing = readValuationSession();
+  if (existing?.session?.request) return existing;
   if (existing?.device && existing.session.deviceId === device.id &&
       hasSameDeviceConfiguration(existing.device, device)) {
     return existing;
@@ -208,4 +212,50 @@ export function continueWithDevice(device: Device) {
   const next = createDeviceSession(device);
   saveValuationSession(next);
   return next;
+}
+
+
+export function hasRequestPrerequisites(stored: StoredValuationSession | null | undefined) {
+  return hasCompletedAssessment(stored) && stored?.session.deviceId === stored?.device.id &&
+    Number.isSafeInteger(stored?.session.expectedPrice?.amount) && (stored?.session.expectedPrice?.amount ?? 0) > 0 &&
+    hasReachedStage(stored?.session.status, "expected_price_entered");
+}
+
+export function hasSubmittedRequest(stored: StoredValuationSession | null | undefined): boolean {
+  const request = stored?.session?.request;
+  return Boolean(stored && request && stored.session.status === "request_submitted" &&
+    request.sessionId === stored.session.id && request.state === "submitted" &&
+    request.lineConnection === "prototype_pending" && typeof request.id === "string" &&
+    /^MOCK-[A-F0-9]{8}$/.test(request.reference) && typeof request.submittedAt === "string" &&
+    request.context?.device && request.context?.assessment && request.context?.expectedPrice &&
+    request.context?.preliminaryValuation && hasRequestPrerequisites(stored) &&
+    requestContextMatches(stored, request.context));
+}
+
+function requestContextMatches(stored: StoredValuationSession, context: RequestContext) {
+  const assessment = stored.session.assessment;
+  if (!assessment || !context?.device?.specs || !context.expectedPrice || !context.preliminaryValuation) return false;
+  const definition = getMockAssessment(stored.device);
+  if (!isCurrentAssessment(context.assessment, definition) || !context.assessment.reviewedAt) return false;
+  const range = context.preliminaryValuation;
+  return hasSameDeviceConfiguration(stored.device, context.device) &&
+    answerIdentity(assessment.answers) === answerIdentity(context.assessment.answers) &&
+    stored.session.expectedPrice?.amount === context.expectedPrice.amount && context.expectedPrice.currency === "THB" &&
+    range.currency === "THB" && Number.isFinite(range.minPrice) && Number.isFinite(range.maxPrice) &&
+    range.minPrice <= range.maxPrice;
+}
+
+export function markRequestSubmitted(request: MockRequestReceipt) {
+  const stored = readValuationSession();
+  if (!stored || !hasRequestPrerequisites(stored)) return null;
+  if (stored.session.request) return hasSubmittedRequest(stored) ? stored : null;
+  if (request.sessionId !== stored.session.id || request.state !== "submitted" ||
+      request.lineConnection !== "prototype_pending" || !requestContextMatches(stored, request.context)) return null;
+  const updated: StoredValuationSession = {
+    ...stored,
+    session: { ...stored.session, status: "request_submitted", request, updatedAt: new Date().toISOString() },
+  };
+  if (!hasSubmittedRequest(updated)) return null;
+  saveValuationSession(updated);
+  return updated;
 }

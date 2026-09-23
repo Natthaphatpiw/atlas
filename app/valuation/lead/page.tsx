@@ -3,15 +3,16 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
-import { MockLeadService } from "@/adapters/mock/lead";
+import { MockRequestService } from "@/adapters/mock/request";
+import { contactErrors, normalizeSellerContact } from "@/lib/seller-contact";
 import { MockValuationService } from "@/adapters/mock/valuation";
 import { assessmentComplete, isCurrentAssessment } from "@/lib/assessment";
 import { AppShell } from "@/components/app-shell";
-import { hasCompletedAssessment, hasReachedStage, markLeadCollected, type StoredValuationSession } from "@/lib/valuation-session";
-import type { LeadService } from "@/services/lead-service";
+import { hasCompletedAssessment, hasRequestPrerequisites, markRequestSubmitted, type StoredValuationSession } from "@/lib/valuation-session";
+import type { RequestService } from "@/services/request-service";
 import type { MockValuationResult } from "@/services/valuation-service";
 
-const leadService: LeadService = new MockLeadService();
+const requestService: RequestService = new MockRequestService();
 const valuationService = new MockValuationService();
 const analyticsService = new MockAnalyticsService();
 const noSessionSubscription = () => () => undefined;
@@ -39,6 +40,8 @@ export default function LeadPage() {
   const [incompleteCondition, setIncompleteCondition] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
+  const [lineId, setLineId] = useState("");
+  const viewed = useRef<string | null>(null);
   const [consent, setConsent] = useState(false);
   const [touched, setTouched] = useState({ name: false, phone: false, consent: false });
   const [submitted, setSubmitted] = useState(false);
@@ -51,10 +54,7 @@ export default function LeadPage() {
 
   const hasDevice = Boolean(storedSession?.device && storedSession?.session?.deviceId);
   const hasCondition = hasCompletedAssessment(storedSession);
-  const expectedAmount = storedSession?.session?.expectedPrice?.amount;
-  const hasPrerequisites = hasDevice && hasCondition &&
-    typeof expectedAmount === "number" && Number.isFinite(expectedAmount) && expectedAmount > 0 &&
-    hasReachedStage(storedSession?.session?.status, "expected_price_entered");
+  const hasPrerequisites = hasRequestPrerequisites(storedSession);
 
   useEffect(() => {
     if (!storedSession || !hasPrerequisites) return;
@@ -77,12 +77,13 @@ export default function LeadPage() {
     return () => { active = false; };
   }, [hasPrerequisites, storedSession]);
 
-  // Remove presentation separators only; preserve unexpected characters for validation.
-  const normalizedPhone = phone.trim().replace(/[\s-]/g, "");
-  const nameError = fullName.trim() ? "" : "กรุณาระบุชื่อ";
-  const phoneError = !phone.trim() ? "กรุณาระบุเบอร์โทรศัพท์"
-    : /^0\d{9}$/.test(normalizedPhone) ? "" : "กรุณาตรวจสอบเบอร์โทรศัพท์อีกครั้ง";
-  const consentError = consent ? "" : "กรุณายินยอมให้ติดต่อกลับก่อนดำเนินการต่อ";
+  const contact = normalizeSellerContact({ fullName, phone, lineIdProvided: lineId, consentToContact: consent });
+  const { name: nameError, phone: phoneError, consent: consentError } = contactErrors(contact);
+  useEffect(() => {
+    if (!storedSession || !mockResult || !hasPrerequisites || viewed.current === storedSession.session.id) return;
+    viewed.current = storedSession.session.id;
+    analyticsService.track({ eventName: "seller_contact_viewed", sessionId: storedSession.session.id, route: "/valuation/lead", timestamp: new Date().toISOString() });
+  }, [storedSession, mockResult, hasPrerequisites]);
   const showNameError = (submitted || touched.name) && Boolean(nameError);
   const showPhoneError = (submitted || touched.phone) && Boolean(phoneError);
   const showConsentError = (submitted || touched.consent) && Boolean(consentError);
@@ -101,18 +102,22 @@ export default function LeadPage() {
     submittingRef.current = true;
     setIsSubmitting(true);
     try {
-      await leadService.submitLead({
+      const receipt = await requestService.submitRequest({
         sessionId: storedSession.session.id,
-        fullName: fullName.trim(),
-        phone: normalizedPhone,
-        consentToContact: consent,
+        context: {
+          device: storedSession.device,
+          assessment: storedSession.session.assessment!,
+          expectedPrice: storedSession.session.expectedPrice!,
+          preliminaryValuation: mockResult,
+        },
+        contact,
         source: "atlast_web",
       });
-      if (!markLeadCollected(storedSession.session.id)) {
-        throw new Error("Valuation session is no longer available");
+      if (!markRequestSubmitted(receipt)) {
+        throw new Error("Valuation context changed before submission completed");
       }
       analyticsService.track({
-        eventName: "lead_submitted",
+        eventName: "valuation_request_submitted",
         sessionId: storedSession.session.id,
         route: "/valuation/lead",
         deviceCategory: storedSession.device.category,
@@ -134,8 +139,8 @@ export default function LeadPage() {
 
   return (
     <AppShell
-      title="ข้อมูลติดต่อ"
-      description="กรอกข้อมูลเพื่อให้เราติดต่อกลับเกี่ยวกับการประเมินของคุณ"
+      title="ข้อมูลติดต่อผู้ขาย"
+      description="กรอกข้อมูลติดต่อก่อนส่งคำขอประเมินสินค้า แล้วจึงเชื่อมต่อ LINE ในขั้นตอนถัดไป"
       compactHeader
       backAction={
         <button type="button" onClick={() => router.push("/valuation/result")} disabled={isSubmitting}
@@ -166,6 +171,8 @@ export default function LeadPage() {
           <p role="status" className="py-10 text-center text-sm text-slate-500">กำลังเตรียมข้อมูลการประเมิน...</p>
         ) : (
           <>
+            {storedSession.session.status === "lead_collected" || storedSession.session.status === "handoff_ready" ? <p role="status" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-900">สถานะเดิมยังไม่ใช่คำขอในต้นแบบฉบับนี้ กรุณากรอกข้อมูลติดต่อและส่งคำขอใหม่ ข้อมูลสินค้า สภาพ และราคายังอยู่</p> : null}
+            <p className="mb-4 text-sm leading-6 text-slate-600">นี่คือต้นแบบการส่งคำขอ ยังไม่ส่งข้อมูลให้เจ้าหน้าที่หรือบันทึกบนเซิร์ฟเวอร์ ข้อมูลติดต่อใช้เฉพาะการทดลองครั้งนี้และไม่เก็บในเบราว์เซอร์หลังส่ง</p>
             <p className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-500">
               <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-brand-primary-soft)] text-[var(--color-brand-primary-hover)]">✓</span>
               ประเมินเบื้องต้นเรียบร้อยแล้ว
@@ -206,6 +213,12 @@ export default function LeadPage() {
                     className={inputClass} />
                   {showPhoneError ? <p id="lead-phone-error" aria-live="polite" className="mt-2 text-sm text-rose-700">{phoneError}</p> : null}
                 </div>
+                <div>
+                  <label htmlFor="lead-line-id" className="text-sm font-medium text-slate-700">LINE ID <span className="font-normal text-slate-500">(ไม่บังคับ)</span></label>
+                  <input id="lead-line-id" name="lineIdProvided" type="text" autoComplete="off" value={lineId}
+                    onChange={(event) => setLineId(event.target.value)} aria-describedby="lead-line-help" className={inputClass} />
+                  <p id="lead-line-help" className="mt-2 text-xs leading-6 text-slate-500">ระบุเป็นข้อมูลติดต่อได้หากต้องการ ยังไม่ได้ยืนยันว่าเป็นบัญชีของคุณ และไม่ถือว่าเชื่อมต่อ LINE หรือเพิ่มเพื่อน Atlas แล้ว</p>
+                </div>
                 <div className="pt-1">
                   <label htmlFor="lead-consent" className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm leading-6 text-slate-600">
                     <input ref={consentRef} id="lead-consent" name="consent" type="checkbox" required checked={consent}
@@ -220,7 +233,7 @@ export default function LeadPage() {
               {submitError ? <p role="alert" className="mt-4 text-sm text-rose-700">{submitError}</p> : null}
               <button type="submit" disabled={isSubmitting}
                 className={`mt-5 flex min-h-14 w-full items-center justify-center rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-action-primary-hover)] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none ${focusClass}`}>
-                {isSubmitting ? "กำลังส่งข้อมูล..." : "ส่งข้อมูลและดำเนินการต่อ →"}
+                {isSubmitting ? "กำลังส่งคำขอ..." : "ส่งคำขอประเมินสินค้า →"}
               </button>
             </form>
           </>

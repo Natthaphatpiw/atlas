@@ -2,7 +2,7 @@
 
 ## Current frontend model
 
-The source definitions are in `domain/types.ts`, `domain/assessment.ts`, `services/valuation-service.ts` and `lib/valuation-session.ts`. These are frontend contracts, not database schemas.
+The source definitions are in `domain/types.ts`, `domain/assessment.ts`, `domain/valuation-request.ts`, `services/valuation-service.ts` and `lib/valuation-session.ts`. These are frontend contracts, not database schemas.
 
 ### Browser-local aggregate
 
@@ -19,12 +19,14 @@ This JSON aggregate is stored under `atlast.valuation.session` in browser `sessi
 interface ValuationSession {
   id: string;
   status: "draft" | "device_selected" | "condition_completed" |
-    "expected_price_entered" | "estimated" | "lead_collected" | "handoff_ready";
+    "expected_price_entered" | "estimated" | "lead_collected" | "handoff_ready" |
+    "request_submitted";
   deviceId?: string;
   conditionAnswers: ConditionAnswer[]; // legacy v1 recovery snapshots
   assessment?: SellerAssessment;
   expectedPrice?: ExpectedPrice;
   estimatedPrice?: EstimatedPrice;
+  request?: MockRequestReceipt;
   createdAt: string;
   updatedAt: string;
 }
@@ -146,43 +148,66 @@ interface MockValuationResult {
 }
 ```
 
-Result, Lead and Handoff request this shape through `getMockValuationResult`. It returns the same 24500–27000 fixture regardless of session inputs, including seller-assessment answers. The result is component state, not a persisted valuation record.
+Result and Seller Contact request this shape through `getMockValuationResult`; Request Submitted displays its saved snapshot. It returns the same 24500–27000 fixture regardless of session inputs, including seller-assessment answers. Before submission the range is component state; submission copies it into the local mock receipt, not a production valuation record.
 
 `EstimatedPrice` remains a separate legacy demo domain type containing `amount`, `currency`, `confidence`, `rangeMin`, `rangeMax`, `formulaVersion`, `breakdown` (base value, condition adjustment, market adjustment), and `generatedAt`. `estimateValue()` rejects a session containing a v2 assessment. The active flow does not populate `session.estimatedPrice`; neither this type nor the demo formula defines approved production pricing.
 
-### Lead and consent
+### Valuation request, contact and consent
 
 ```ts
-interface Lead {
-  id: string;
-  sessionId: string;
+interface SellerContact {
   fullName: string;
   phone: string;
-  email?: string;
+  lineIdProvided?: string; // unverified seller-entered text
   consentToContact: boolean;
+}
+
+interface RequestContext {
+  device: Device;
+  assessment: SellerAssessment;
+  expectedPrice: ExpectedPrice;
+  preliminaryValuation: MockValuationResult;
+}
+
+interface ValuationRequestInput {
+  sessionId: string;
+  context: RequestContext;
+  contact: SellerContact;
   source: "atlast_web";
-  createdAt: string;
+}
+
+interface MockRequestReceipt {
+  id: string; // mock-request-{UUID}
+  reference: string; // MOCK-... display reference
+  sessionId: string;
+  state: "submitted";
+  submittedAt: string;
+  lineConnection: "prototype_pending";
+  context: RequestContext;
 }
 ```
 
-The form collects a trimmed nonempty name and phone. Phone normalization removes whitespace/hyphens; validation requires `^0\d{9}$`. This is format validation, not verification of phone ownership. Email is optional in the type but absent from the UI. Contact consent is required and initially unchecked; it is not marketing consent.
+The form collects a trimmed nonempty name and phone, optional unverified LINE ID text, and required contact consent. LINE ID is trimmed at its edges; empty input is omitted and no character-pattern rule is imposed. It is not a platform `lineUserId`, proof of following an OA, or permission/ability to message an account. Phone normalization removes whitespace/hyphens; validation requires `^0\d{9}$`. This is format validation, not verification of phone ownership. Contact consent is required and initially unchecked; it is not marketing consent.
 
-The mock adapter echoes submitted data with ID `mock-lead-${sessionId}` and a browser timestamp. No server persistence occurs. The page does not retain the returned Lead or its ID in the session. Contact fields and consent are component state and reset on remount. The session stores only the progress milestone, not contact PII. No consent wording/version or authoritative consent timestamp is recorded today.
+`ValuationRequestInput` is transient service input. The mock request adapter returns a UUID-style mock ID, `MOCK-...` reference, browser timestamp and `prototype_pending` LINE state. No server persistence occurs. The session persists only `MockRequestReceipt`, which contains request context but no name, phone, LINE ID or consent evidence. Contact fields and consent are component state and reset on remount. No consent wording/version or authoritative consent timestamp is recorded today.
+
+The legacy `Lead` and `LeadService` types remain for compatibility but are not used by this flow. Legacy statuses `lead_collected` and `handoff_ready` do not count as a submitted request. If a current assessment and expected price are available, a legacy session is directed to submit contact again; otherwise it follows the existing earlier-step recovery.
 
 ### Actual lifecycle and invalidation
 
 The normal path is:
 
-`device_selected → condition_completed → expected_price_entered → lead_collected → handoff_ready`
+`device_selected → condition_completed → expected_price_entered → request_submitted`
 
 - `draft` and `estimated` are declared but not assigned by the current normal flow. Result display does not advance to `estimated`.
 - Valid assessment answers save while the seller responds; group Continue confirms changed answer IDs for analytics while status remains `device_selected`. Review confirmation creates `reviewedAt` and advances to `condition_completed`.
 - Legacy Condition answers remain present only for recovery. A v2 assessment is complete only when its current definition/version, all applicable required answers, seller source and Review confirmation are present.
-- Identical effective seller-assessment answers preserve later status. Changed answers clear expected price and legacy estimated value, and return to `device_selected`.
+- Before request submission, identical effective seller-assessment answers preserve later status. Changed answers clear expected price and legacy estimated value, and return to `device_selected`.
 - An unchanged Expected Price preserves later progress. A changed amount sets `expected_price_entered`.
-- `lead_collected` means mock submission succeeded and local progress advanced, not that a durable lead exists.
-- `handoff_ready` means the continuation screen prepared its mock context. It does not mean LINE is connected, clicked or delivered.
-- Status ordering permits earlier completed screens after advanced stages. Route prerequisite checks provide recovery actions. Lowering status is not equivalent to deleting every previously stored field.
+- `request_submitted` means the mock request adapter returned a receipt and that receipt is stored locally. It is not durable server submission, confirmed contact or a LINE connection.
+- A stored request receipt locks earlier valuation changes in this browser session. Earlier routes link to the receipt; this MVP provides no revision or restart UI. A fresh browser session begins another prototype trial.
+- Legacy `lead_collected` and `handoff_ready` are retained only for compatibility and never satisfy the request-submission prerequisite.
+- Before request submission, status ordering permits revisiting earlier completed screens. Route prerequisite checks provide recovery actions. Lowering status is not equivalent to deleting every previously stored field.
 
 ### Future placeholder Handoff type
 
@@ -192,11 +217,11 @@ The domain declares `Handoff` with `id`, `sessionId`, `destination: "line_offici
 
 The Backend Developer should implement persistence/API behind the frontend boundaries without treating local browser records as authoritative.
 
-- Backend/API must own persisted session identity, authoritative timestamps, durable Lead and consent records, and server-confirmed lifecycle milestones.
+- Backend/API must own persisted session identity, authoritative timestamps, durable request/contact and consent records, and server-confirmed lifecycle milestones.
 - Device identity needs stable canonical category, brand, model and configuration/spec identifiers, with catalog/version identity where appropriate. Concepts such as `categoryId`, `brandId` and `modelId` are requirements to resolve, not invented IDs or a schema.
 - Durable seller-reported answers need stable assessment definition/version, question and option identity plus structured value representation. Thai display labels must not be canonical keys. Any future verified-inspection record must remain distinct from the seller report.
 - Server validation must validate catalog configuration, required answers, accepted monetary representation and contact input; client scores/status flags are not authoritative evidence.
 - Durable consent should support consent state, wording/version and an authoritative timestamp. Retention and legal-policy details are not specified here.
-- Lead/session association, retry semantics and edit-driven invalidation need an agreed persisted contract.
+- Request/session association, PII handling, retry/idempotency semantics and edit-driven invalidation need an agreed persisted contract.
 
 Anonymous lifetime, resume duration, authentication, final database technology/schema, production valuation methodology/confidence/provenance/expiry and LINE identifiers remain unresolved. No SQL or Supabase schema is prescribed.
