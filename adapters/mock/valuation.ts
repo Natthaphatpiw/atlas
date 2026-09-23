@@ -7,12 +7,20 @@ export class MockValuationService implements ValuationService {
     return mockDevices;
   }
 
+  async getDeviceAssessment(device: Device) {
+    const { getMockAssessment } = await import("@/adapters/mock/assessment");
+    return getMockAssessment(device);
+  }
+
+  /** Legacy v1 questions only. */
   async getConditionQuestions(deviceCategory: Device["category"]) {
     const { mockConditionQuestions } = await import("@/adapters/mock/condition-questions");
     return mockConditionQuestions.filter((question) => question.category === deviceCategory);
   }
 
   async estimateValue(session: ValuationSession): Promise<EstimatedPrice> {
+    // Seller assessments have no pricing weights; never feed them into the old demo.
+    if (session.assessment) throw new Error("Seller assessment pricing is not implemented");
     const baseAmount = 14500;
     const conditionWeight = session.conditionAnswers.reduce((total, answer) => {
       return total + answer.normalizedScore * answer.weight;

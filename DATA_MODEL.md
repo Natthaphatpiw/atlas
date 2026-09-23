@@ -2,7 +2,7 @@
 
 ## Current frontend model
 
-The source definitions are in `domain/types.ts`, `services/valuation-service.ts` and `lib/valuation-session.ts`. These are frontend contracts, not database schemas.
+The source definitions are in `domain/types.ts`, `domain/assessment.ts`, `services/valuation-service.ts` and `lib/valuation-session.ts`. These are frontend contracts, not database schemas.
 
 ### Browser-local aggregate
 
@@ -13,7 +13,7 @@ interface StoredValuationSession {
 }
 ```
 
-This JSON aggregate is stored under `atlast.valuation.session` in browser `sessionStorage`. It supports refresh and navigation in the browser page session; it is not durable backend storage, a cross-device account or a guaranteed resume service. Browser clearing/closing behavior can remove it. Reads parse JSON and cast types; they do not perform runtime schema validation.
+This JSON aggregate is stored under `atlast.valuation.session` in browser `sessionStorage`. It supports refresh and navigation in the browser page session; it is not durable backend storage, a cross-device account or a guaranteed resume service. Browser clearing/closing behavior can remove it. The aggregate reader parses JSON and casts types rather than validating the full session schema. The assessment compatibility check validates version/source and the machine-answer shape before the assessment is used.
 
 ```ts
 interface ValuationSession {
@@ -21,7 +21,8 @@ interface ValuationSession {
   status: "draft" | "device_selected" | "condition_completed" |
     "expected_price_entered" | "estimated" | "lead_collected" | "handoff_ready";
   deviceId?: string;
-  conditionAnswers: ConditionAnswer[];
+  conditionAnswers: ConditionAnswer[]; // legacy v1 recovery snapshots
+  assessment?: SellerAssessment;
   expectedPrice?: ExpectedPrice;
   estimatedPrice?: EstimatedPrice;
   createdAt: string;
@@ -58,7 +59,38 @@ Identity comparison uses catalog `Device.id` and equality of structured spec key
 
 The mock catalog covers representative iPhone 13–17 models with model-specific storage and color options, plus the existing fixed Galaxy S24 Ultra and MacBook Air configurations. Mock-only `MockCatalogDevice.specOptions` supplies selectable values per spec; absent option lists fall back to the fixture’s single spec value. Confirmation stores only the selected `Device` snapshot, without option lists. Model changes clear dependent specs; changing one spec preserves the other selections. Existing iPhone 15 Pro IDs and the original 256GB / Natural Titanium / 5G configuration remain compatible with stored sessions. This is frontend UX/development data, not authoritative production inventory. Brand/model labels, spec values, `marketHints` and fixture timestamps are not a canonical backend catalog design.
 
-### ConditionQuestion and ConditionAnswer
+### SellerAssessment
+
+```ts
+interface SellerAssessment {
+  definitionId: string;
+  version: number;
+  source: "seller_reported";
+  answers: AssessmentAnswer[];
+  reviewedAt?: string;
+}
+
+interface AssessmentAnswer {
+  questionId: string;
+  value:
+    | { kind: "choice"; optionId: string }
+    | { kind: "multi"; optionIds: string[] }
+    | { kind: "number"; value: number }
+    | { kind: "unknown" }
+    | { kind: "skipped" };
+  answeredAt: string;
+}
+```
+
+The active assessment definition is mock frontend data. It has stable definition/version, section, question and option identities; Thai labels are display copy. Questions declare their required state, supported input type, category/feature applicability and conditional visibility rules. The current types support single choice, yes/no/unknown, numeric and multi-select answers only where needed by this assessment; they do not prescribe a generic form platform or backend schema.
+
+For Apple iPhones, `seller_reported_iphone_v1` contains seven sections: device basics, physical condition, functionality, battery, repair/parts history, account/security and organization management. The fixture gates Face ID, Touch ID and wireless-charging questions by declared features; it also omits functionality questions when the seller reports that the device does not power on. Current iPhone fixtures declare Face ID and wireless charging, so Touch ID is not asked. Repair detail questions appear only after an applicable reported repair; Battery Health is optional, accepts an integer from 0–100, and permits an unknown answer or no value. The non-iPhone `seller_reported_basic_v1` fallback contains only power, exterior severity and normal-function questions.
+
+The source is explicitly `seller_reported`. None of these values is a verified inspection, and no browser check verifies hardware, ownership/security, MDM, supervision, repair history or part provenance. A future physical inspection may use a separate verified representation and may verify or override a seller report; that record and its persistence are not defined here.
+
+Valid answers save locally as they change; invalid numeric drafts stay local to the input and preserve the previous saved answer. Clearing the optional input deliberately removes its answer. No-longer-applicable answers are pruned according to the current definition and selected device. A reviewed assessment requires all current required answers and `reviewedAt`; this is a seller review confirmation, not a verification timestamp. An unchanged effective answer set preserves legitimate later status; answer ordering, multi-select ordering, object-key ordering and timestamps do not constitute an answer change. A changed effective assessment clears the saved expected price and obsolete estimated value and returns progress to the assessment stage.
+
+### Legacy ConditionQuestion and ConditionAnswer
 
 ```ts
 interface ConditionQuestion {
@@ -86,9 +118,9 @@ interface ConditionAnswer {
 }
 ```
 
-Current fixtures contain four phone questions and one laptop question. Selecting an option creates a local draft; Continue persists through the session helper. Refresh resumes from saved answers, not unconfirmed drafts. Review allows edits.
+These are the v1 questionnaire snapshots, retained solely so existing local sessions remain readable and recoverable. They are not converted automatically to a v2 `SellerAssessment`, never score a v2 seller assessment, and are not used to satisfy its prerequisite. A legacy session is directed to explicitly answer and review the current assessment; its archived `conditionAnswers` remain in the browser-local aggregate.
 
-`answer` currently stores the Thai option label, not the stable option `value`. Question text, score and weight are copied into the answer, and `answeredAt` is browser-generated. These snapshots must not be mistaken for authoritative server scoring. Durable answer identity/versioning is a future requirement below.
+`answer` stores the Thai option label, not the stable option `value`. Question text, score and weight are copied into the answer, and `answeredAt` is browser-generated. These legacy snapshots must not be mistaken for authoritative server scoring.
 
 ### ExpectedPrice
 
@@ -114,9 +146,9 @@ interface MockValuationResult {
 }
 ```
 
-Result, Lead and Handoff request this shape through `getMockValuationResult`. It returns the same 24500–27000 fixture regardless of session inputs. The result is component state, not a persisted valuation record.
+Result, Lead and Handoff request this shape through `getMockValuationResult`. It returns the same 24500–27000 fixture regardless of session inputs, including seller-assessment answers. The result is component state, not a persisted valuation record.
 
-`EstimatedPrice` remains a separate domain type containing `amount`, `currency`, `confidence`, `rangeMin`, `rangeMax`, `formulaVersion`, `breakdown` (base value, condition adjustment, market adjustment), and `generatedAt`. The unused demo `estimateValue()` returns it. The active flow does not populate `session.estimatedPrice`; neither this type nor the demo formula defines approved production pricing.
+`EstimatedPrice` remains a separate legacy demo domain type containing `amount`, `currency`, `confidence`, `rangeMin`, `rangeMax`, `formulaVersion`, `breakdown` (base value, condition adjustment, market adjustment), and `generatedAt`. `estimateValue()` rejects a session containing a v2 assessment. The active flow does not populate `session.estimatedPrice`; neither this type nor the demo formula defines approved production pricing.
 
 ### Lead and consent
 
@@ -144,8 +176,9 @@ The normal path is:
 `device_selected → condition_completed → expected_price_entered → lead_collected → handoff_ready`
 
 - `draft` and `estimated` are declared but not assigned by the current normal flow. Result display does not advance to `estimated`.
-- Intermediate Condition saves use `device_selected`; final-question Continue and review completion use `condition_completed`.
-- Identical saved answers preserve later status; changed answers lower it. Answer comparison includes the stored answer objects, including timestamps. Existing Expected Price is retained when Condition changes.
+- Valid assessment answers save while the seller responds; group Continue confirms changed answer IDs for analytics while status remains `device_selected`. Review confirmation creates `reviewedAt` and advances to `condition_completed`.
+- Legacy Condition answers remain present only for recovery. A v2 assessment is complete only when its current definition/version, all applicable required answers, seller source and Review confirmation are present.
+- Identical effective seller-assessment answers preserve later status. Changed answers clear expected price and legacy estimated value, and return to `device_selected`.
 - An unchanged Expected Price preserves later progress. A changed amount sets `expected_price_entered`.
 - `lead_collected` means mock submission succeeded and local progress advanced, not that a durable lead exists.
 - `handoff_ready` means the continuation screen prepared its mock context. It does not mean LINE is connected, clicked or delivered.
@@ -161,7 +194,7 @@ The Backend Developer should implement persistence/API behind the frontend bound
 
 - Backend/API must own persisted session identity, authoritative timestamps, durable Lead and consent records, and server-confirmed lifecycle milestones.
 - Device identity needs stable canonical category, brand, model and configuration/spec identifiers, with catalog/version identity where appropriate. Concepts such as `categoryId`, `brandId` and `modelId` are requirements to resolve, not invented IDs or a schema.
-- Durable answers need stable questionnaire/version, question and option identity. Thai display labels must not be canonical keys.
+- Durable seller-reported answers need stable assessment definition/version, question and option identity plus structured value representation. Thai display labels must not be canonical keys. Any future verified-inspection record must remain distinct from the seller report.
 - Server validation must validate catalog configuration, required answers, accepted monetary representation and contact input; client scores/status flags are not authoritative evidence.
 - Durable consent should support consent state, wording/version and an authoritative timestamp. Retention and legal-policy details are not specified here.
 - Lead/session association, retry semantics and edit-driven invalidation need an agreed persisted contract.

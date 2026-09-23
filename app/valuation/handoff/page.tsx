@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { MockValuationService } from "@/adapters/mock/valuation";
 import { AppShell } from "@/components/app-shell";
-import { hasReachedStage, markHandoffReady, type StoredValuationSession } from "@/lib/valuation-session";
+import { hasCompletedAssessment, hasReachedStage, markHandoffReady, type StoredValuationSession } from "@/lib/valuation-session";
 import type { MockValuationResult } from "@/services/valuation-service";
 
 const valuationService = new MockValuationService();
@@ -35,8 +35,7 @@ export default function HandoffPage() {
   const trackedSessionRef = useRef<string | null>(null);
 
   const hasDevice = Boolean(storedSession?.device && storedSession?.session?.deviceId);
-  const hasCondition = Boolean(storedSession?.session?.conditionAnswers?.length) &&
-    hasReachedStage(storedSession?.session?.status, "condition_completed");
+  const hasCondition = hasCompletedAssessment(storedSession);
   const expectedAmount = storedSession?.session?.expectedPrice?.amount;
   const hasExpectedPrice = typeof expectedAmount === "number" && Number.isFinite(expectedAmount) && expectedAmount > 0 &&
     hasReachedStage(storedSession?.session?.status, "expected_price_entered");

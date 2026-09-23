@@ -7,7 +7,7 @@ import { MockValuationService } from "@/adapters/mock/valuation";
 import { AppShell } from "@/components/app-shell";
 import type { Device } from "@/domain/types";
 import { type MockValuationResult } from "@/services/valuation-service";
-import { hasReachedStage, type StoredValuationSession } from "@/lib/valuation-session";
+import { hasCompletedAssessment, hasReachedStage, type StoredValuationSession } from "@/lib/valuation-session";
 
 const valuationProgress = ["สินค้า", "สภาพ", "ราคาที่ต้องการ", "ผลประเมิน"];
 const storageKey = "atlast.valuation.session";
@@ -39,7 +39,7 @@ export default function ResultPage() {
 
   const hasPrerequisites = Boolean(
     storedSession?.device &&
-      storedSession.session.conditionAnswers.length > 0 &&
+      hasCompletedAssessment(storedSession) &&
       storedSession.session.expectedPrice &&
       hasReachedStage(storedSession.session.status, "expected_price_entered"),
   );
@@ -116,8 +116,8 @@ export default function ResultPage() {
           <MissingContext
             title="ยังไม่มีข้อมูลครบสำหรับผลประเมิน"
             description="ทำตามขั้นตอนสินค้า สภาพ และราคาที่ต้องการให้ครบก่อนดูผลประเมิน"
-            actionLabel={storedSession.session.conditionAnswers.length > 0 ? "ระบุราคาที่ต้องการ" : "ตอบคำถามสภาพ"}
-            onAction={() => router.push(storedSession.session.conditionAnswers.length > 0 ? "/valuation/expected-price" : "/valuation/condition")}
+            actionLabel={hasCompletedAssessment(storedSession) ? "ระบุราคาที่ต้องการ" : "ตอบคำถามสภาพ"}
+            onAction={() => router.push(hasCompletedAssessment(storedSession) ? "/valuation/expected-price" : "/valuation/condition")}
           />
         ) : !mockResult ? (
           <div className="px-4 py-10 text-center text-sm text-slate-500">กำลังเตรียมผลประเมิน...</div>

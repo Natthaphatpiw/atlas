@@ -15,6 +15,8 @@ interface MockValuationResult {
 
 interface ValuationService {
   getDeviceCatalog(): Promise<Device[]>;
+  getDeviceAssessment(device: Device): Promise<AssessmentDefinition>;
+  /** Legacy v1 fixture API; not used by the seller assessment. */
   getConditionQuestions(deviceCategory: Device["category"]): Promise<ConditionQuestion[]>;
   estimateValue(session: ValuationSession): Promise<EstimatedPrice>;
   getMockValuationResult(session: ValuationSession): Promise<MockValuationResult>;
@@ -22,9 +24,10 @@ interface ValuationService {
 ```
 
 - `getDeviceCatalog` exists, but Device currently imports the fixture catalog directly.
-- `getConditionQuestions` returns category-specific questions. Condition uses them for the questionnaire; Lead also checks required answers against them.
+- `getDeviceAssessment` returns the applicable data-driven seller assessment for the selected device. Its current mock fixture provides detailed iPhone coverage and a basic non-iPhone fallback. It is not a verified inspection or a pricing rule.
+- `getConditionQuestions` is a legacy v1 fixture API. The v2 assessment and its prerequisites do not use it.
 - `getMockValuationResult` is the active result boundary used by Result, Lead and Handoff. It returns a fixed THB range of 24500–27000 and does not calculate from session inputs.
-- `estimateValue` is unused formula-based demo logic. It is not an approved production valuation engine and must not be adopted as one by inference.
+- `estimateValue` is unused formula-based demo logic. It rejects v2 seller assessments and is not an approved production valuation engine.
 - The active range is preliminary and non-binding. There is no persisted result ID, approved quote, production confidence, provenance or expiry contract.
 
 ### LeadService
@@ -64,15 +67,15 @@ Analytics is vendor-neutral. The current mock adapter logs event objects with `c
 | `landing_viewed` | Landing mount; a ref prevents duplicates from normal rerenders/effect replay |
 | `valuation_started` | Device confirmation creates a new valuation session; unchanged-session continuation does not restart it |
 | `device_selected` | Device Continue confirms a configuration, including an unchanged one; repeated clicks during navigation are guarded |
-| `condition_question_answered` | Continue accepts an answer, immediately before the session-helper save |
-| `condition_section_completed` | Final-question Continue saves completion; not a separate event on review Continue |
+| `condition_question_answered` | Assessment group Continue emits changed answer IDs only after a successful session save |
+| `condition_section_completed` | Review confirmation saves the completed seller assessment; one event covers the whole assessment |
 | `expected_price_entered` | Valid Expected Price Continue saves the value; in-app Back may save without emitting this event |
 | `valuation_result_viewed` | Mock range loads for display on Result |
 | `seller_proceeded` | Result Continue |
 | `lead_submitted` | Mock Lead submission succeeds and local status advances |
 | `handoff_started` | Handoff context is prepared and local status becomes ready; not a LINE button click or delivery |
 
-Current Condition events do not include a session ID or question/option ID. A declared field or question `analyticsId` does not imply it is emitted. Genuine page remounts can emit another view/start-of-screen event; there is no global exactly-once delivery guarantee.
+Assessment events may include the session/device context, `questionId` and `assessmentVersion`; answer values and option IDs are not emitted. They never include contact PII, raw LINE data or claimed verification results. Genuine page remounts can emit another view/start-of-screen event; there is no global exactly-once delivery guarantee.
 
 Declared but not emitted:
 
@@ -89,7 +92,8 @@ The following endpoints are earlier proposals, not implemented routes, approved 
 | Proposed endpoint | Provisional responsibility |
 | --- | --- |
 | `GET /devices` | Retrieve available catalog data |
-| `GET /condition-questions?category={deviceCategory}` | Retrieve applicable questions |
+| `GET /device-assessment?deviceId={deviceId}` | Retrieve an applicable versioned seller-assessment definition |
+| `GET /condition-questions?category={deviceCategory}` | Earlier legacy v1-question proposal |
 | `POST /valuation/estimate` | Request an estimate under an approved future valuation contract |
 | `POST /leads` | Persist a validated lead and return a confirmed record |
 | `POST /handoff/line` | Prepare a future LINE continuation, only when separately authorized |
@@ -112,8 +116,8 @@ Resolve before or during the relevant backend work:
 
 1. Canonical persisted session ownership and server-issued identity/timestamps. Anonymous lifetime, resume duration and authentication remain undecided.
 2. Stable device/catalog category, brand, model and configuration/spec identity; define catalog/version treatment without using presentation labels as keys.
-3. Stable questionnaire/version, question and option identity. Current Thai answer labels are snapshots, not durable canonical identifiers.
-4. Authoritative validation of devices, answers, positive safe-integer THB amounts and contact data. Do not trust client scores or completion flags.
+3. Stable seller-assessment definition/version, question and option identity, structured answer values and conditional applicability. Thai answer labels are not durable canonical identifiers. A future verified physical inspection must remain distinguishable from seller-reported answers.
+4. Authoritative validation of devices, seller-reported answers, positive safe-integer THB amounts and contact data. Do not trust client scores, completion flags or seller reports as verified condition.
 5. Durable Lead/session association, submission success and retry/idempotency semantics.
 6. Consent evidence: state, wording/version and authoritative timestamp. Retention/legal policy details are not specified.
 7. Server-owned lifecycle milestones and invalidation when earlier inputs change, distinguished from browser progress.

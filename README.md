@@ -1,11 +1,11 @@
 # Atlas
 
-Atlas is a Thai-first, responsive seller valuation and lead-validation Frontend MVP. It collects device details, condition, expected selling price and contact consent. It is not an operational pawn/loan product.
+Atlas is a Thai-first, responsive seller valuation and lead-validation Frontend MVP. It collects device details, a seller-reported device assessment, expected selling price and contact consent. It is not an operational pawn/loan product.
 
 ## Current implementation
 
 - Next.js 16.3.5 App Router, React 19, TypeScript and Tailwind CSS 4.
-- Progressive device selection, saved Condition answers, safe-integer THB price entry, preliminary results, Lead Capture and a prepared continuation screen.
+- Progressive device selection, a saved structured Seller Device Assessment, safe-integer THB price entry, preliminary results, Lead Capture and a prepared continuation screen.
 - The mock iPhone catalog covers the 13–17 generations with model-specific storage and colors. It is frontend UX test data, not authoritative production inventory. Samsung and MacBook fixtures remain available.
 - Valuation progress lives in browser `sessionStorage`, not a backend.
 - Result, Lead and Handoff share a fixed mock ฿24,500–฿27,000 range. The unused demo formula is not production pricing.
@@ -19,7 +19,7 @@ Atlas is a Thai-first, responsive seller valuation and lead-validation Frontend 
 | `/` | Landing |
 | `/valuation` | Redirects to `/valuation/device`; no separate start screen |
 | `/valuation/device` | Category, brand, model and specs |
-| `/valuation/condition` | Category-specific questionnaire and review |
+| `/valuation/condition` | Seller-reported Device Assessment and review |
 | `/valuation/expected-price` | Expected selling price in integer THB |
 | `/valuation/result` | Preliminary mock range |
 | `/valuation/lead` | Name, phone and required contact consent |
@@ -31,12 +31,12 @@ Atlas is a Thai-first, responsive seller valuation and lead-validation Frontend 
 
 - `app/`: routes and page UI.
 - `components/`: shared shell, modal and design-preview components.
-- `domain/`: TypeScript domain and analytics types.
+- `domain/`: TypeScript domain, assessment and analytics types.
 - `services/`: valuation, Lead and analytics interfaces.
-- `adapters/mock/`: fixture catalog/questions, fixed range, mock Lead and console analytics.
+- `adapters/mock/`: fixture catalog/assessment definitions, fixed range, mock Lead and console analytics.
 - `lib/valuation-session.ts`: browser-local `{ session, device }`, progress updates and device identity comparison.
 
-Pages currently instantiate mock adapters; Device reads mock catalog data directly. Future persistence/API should sit behind these boundaries. Same device ID/spec configuration preserves session progress; a changed configuration restarts dependent state. Backend authority and unresolved decisions are described in API_CONTRACT.md and DATA_MODEL.md.
+Pages currently instantiate mock adapters; Device reads mock catalog data directly. Future persistence/API should sit behind these boundaries. Same device ID/spec configuration preserves session progress; a changed configuration restarts dependent state. The assessment is seller-reported preliminary information, never an Atlas or Apple verified inspection. Backend authority and unresolved decisions are described in API_CONTRACT.md and DATA_MODEL.md.
 
 ## Run and validate
 
@@ -49,6 +49,8 @@ Open http://localhost:3000.
 
 ```bash
 npm run lint
+npx tsc --noEmit
+node --test tests/assessment.test.cjs
 git diff --check
 npm run build
 npm run start

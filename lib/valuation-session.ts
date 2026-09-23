@@ -1,4 +1,7 @@
-import type { ConditionAnswer, Device, ExpectedPrice, SessionStatus, ValuationSession } from "@/domain/types";
+import { getMockAssessment } from "@/adapters/mock/assessment";
+import type { AssessmentAnswer, AssessmentDefinition } from "@/domain/assessment";
+import { answerIdentity, assessmentComplete, isCurrentAssessment, pruneAnswers } from "@/lib/assessment";
+import type { Device, ExpectedPrice, SessionStatus, ValuationSession } from "@/domain/types";
 
 const storageKey = "atlast.valuation.session";
 
@@ -62,38 +65,52 @@ export function readValuationSession(): StoredValuationSession | null {
   }
 }
 
-export function updateConditionAnswers(
-  conditionAnswers: ConditionAnswer[],
-  status: SessionStatus = "condition_completed",
-) {
-  const storedSession = readValuationSession();
+// The fixture definition is the current frontend authority, not a backend contract.
+export function hasCompletedAssessment(stored: StoredValuationSession | null | undefined) {
+  if (!stored?.device || !stored.session) return false;
+  const definition = getMockAssessment(stored.device);
+  const assessment = stored.session.assessment;
+  return isCurrentAssessment(assessment, definition) && Boolean(assessment.reviewedAt) &&
+    assessmentComplete(definition, stored.device, assessment.answers) &&
+    hasReachedStage(stored.session.status, "condition_completed");
+}
 
-  if (!storedSession) {
-    return null;
-  }
-
-  const updatedSession: StoredValuationSession = {
-    ...storedSession,
+export function saveAssessmentAnswers(definition: AssessmentDefinition, answers: AssessmentAnswer[], reviewed = false) {
+  const stored = readValuationSession();
+  if (!stored) return null;
+  const currentDefinition = getMockAssessment(stored.device);
+  if (currentDefinition.id !== definition.id || currentDefinition.version !== definition.version) return null;
+  const clean = pruneAnswers(currentDefinition, stored.device, answers);
+  const previous = stored.session.assessment;
+  const unchanged = isCurrentAssessment(previous, currentDefinition) &&
+    answerIdentity(previous.answers) === answerIdentity(clean);
+  const now = new Date().toISOString();
+  const reviewedAt = reviewed && assessmentComplete(currentDefinition, stored.device, clean)
+    ? (unchanged && previous?.reviewedAt ? previous.reviewedAt : now)
+    : unchanged ? previous?.reviewedAt : undefined;
+  const updated: StoredValuationSession = {
+    ...stored,
     session: {
-      ...storedSession.session,
-      status:
-        JSON.stringify(storedSession.session.conditionAnswers) === JSON.stringify(conditionAnswers) &&
-        hasReachedStage(storedSession.session.status, status)
-          ? storedSession.session.status
-          : status,
-      conditionAnswers,
-      updatedAt: new Date().toISOString(),
+      ...stored.session,
+      assessment: { definitionId: currentDefinition.id, version: currentDefinition.version,
+        source: "seller_reported", answers: clean, ...(reviewedAt ? { reviewedAt } : {}) },
+      status: unchanged && reviewedAt && hasReachedStage(stored.session.status, "condition_completed")
+        ? stored.session.status : reviewedAt ? "condition_completed" : "device_selected",
+      updatedAt: now,
     },
   };
-
-  saveValuationSession(updatedSession);
-  return updatedSession;
+  if (!unchanged) {
+    delete updated.session.expectedPrice;
+    delete updated.session.estimatedPrice;
+  }
+  saveValuationSession(updated);
+  return updated;
 }
 
 export function updateExpectedPrice(amount: number) {
   const storedSession = readValuationSession();
 
-  if (!storedSession) {
+  if (!storedSession || !hasCompletedAssessment(storedSession)) {
     return null;
   }
 
@@ -128,7 +145,7 @@ export function updateExpectedPrice(amount: number) {
 export function markLeadCollected(sessionId: string) {
   const storedSession = readValuationSession();
 
-  if (!storedSession || storedSession.session.id !== sessionId ||
+  if (!storedSession || !hasCompletedAssessment(storedSession) || storedSession.session.id !== sessionId ||
       !hasReachedStage(storedSession.session.status, "expected_price_entered")) {
     return null;
   }
@@ -152,7 +169,7 @@ export function markLeadCollected(sessionId: string) {
 export function markHandoffReady(sessionId: string) {
   const storedSession = readValuationSession();
 
-  if (!storedSession || storedSession.session.id !== sessionId ||
+  if (!storedSession || !hasCompletedAssessment(storedSession) || storedSession.session.id !== sessionId ||
       !hasReachedStage(storedSession.session.status, "lead_collected")) {
     return null;
   }

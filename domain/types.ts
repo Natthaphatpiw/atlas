@@ -1,3 +1,5 @@
+import type { SellerAssessment } from "./assessment";
+
 export type CurrencyCode = "THB";
 
 export type DeviceCategory =
@@ -91,7 +93,9 @@ export interface ValuationSession {
   id: string;
   status: SessionStatus;
   deviceId?: string;
+  /** Legacy v1 snapshots, retained only for recovery; never scored for v2. */
   conditionAnswers: ConditionAnswer[];
+  assessment?: SellerAssessment;
   expectedPrice?: ExpectedPrice;
   estimatedPrice?: EstimatedPrice;
   createdAt: string;
@@ -129,6 +133,8 @@ export interface AnalyticsEvent {
   confidence?: number;
   timestamp: string;
   sourceChannel?: string;
+  questionId?: string;
+  assessmentVersion?: number;
 }
 
 export type AnalyticsEventName =

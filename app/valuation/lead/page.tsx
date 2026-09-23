@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { MockLeadService } from "@/adapters/mock/lead";
 import { MockValuationService } from "@/adapters/mock/valuation";
+import { assessmentComplete, isCurrentAssessment } from "@/lib/assessment";
 import { AppShell } from "@/components/app-shell";
-import { hasReachedStage, markLeadCollected, type StoredValuationSession } from "@/lib/valuation-session";
+import { hasCompletedAssessment, hasReachedStage, markLeadCollected, type StoredValuationSession } from "@/lib/valuation-session";
 import type { LeadService } from "@/services/lead-service";
 import type { MockValuationResult } from "@/services/valuation-service";
 
@@ -49,8 +50,7 @@ export default function LeadPage() {
   const consentRef = useRef<HTMLInputElement>(null);
 
   const hasDevice = Boolean(storedSession?.device && storedSession?.session?.deviceId);
-  const hasCondition = Boolean(storedSession?.session?.conditionAnswers?.length) &&
-    hasReachedStage(storedSession?.session?.status, "condition_completed");
+  const hasCondition = hasCompletedAssessment(storedSession);
   const expectedAmount = storedSession?.session?.expectedPrice?.amount;
   const hasPrerequisites = hasDevice && hasCondition &&
     typeof expectedAmount === "number" && Number.isFinite(expectedAmount) && expectedAmount > 0 &&
@@ -62,13 +62,12 @@ export default function LeadPage() {
 
     void Promise.all([
       valuationService.getMockValuationResult(storedSession.session),
-      valuationService.getConditionQuestions(storedSession.device.category),
-    ]).then(([result, questions]) => {
+      valuationService.getDeviceAssessment(storedSession.device),
+    ]).then(([result, definition]) => {
       if (!active) return;
-      const complete = questions.length > 0 && questions.filter((question) => question.required !== false)
-        .every((question) => storedSession.session.conditionAnswers.some((answer) =>
-          answer.questionId === question.id && question.options.some((option) => option.label === answer.answer),
-        ));
+      const assessment = storedSession.session.assessment;
+      const complete = isCurrentAssessment(assessment, definition) &&
+        assessmentComplete(definition, storedSession.device, assessment.answers);
       setIncompleteCondition(!complete);
       setMockResult(complete ? result : null);
     }).catch(() => {
