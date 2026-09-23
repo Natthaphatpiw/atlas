@@ -1,4 +1,5 @@
 import type { AssessmentDefinition, AssessmentFeature, AssessmentQuestion } from "@/domain/assessment";
+import { detailedIPhoneIds } from "@/data/devices";
 import type { Device } from "@/domain/types";
 
 // Development fixtures for a seller-reported preliminary assessment. They do
@@ -364,33 +365,8 @@ const basicQuestions: AssessmentQuestion[] = [
 ];
 
 const iPhoneFeatures: AssessmentFeature[] = ["face_id", "wireless_charging"];
-// This explicit current-fixture set prevents an arbitrary future iPhone model
-// from inheriting Face ID and wireless-charging assumptions.
-const currentMockIPhoneIds = new Set([
-  "device-iphone-17",
-  "device-iphone-air",
-  "device-iphone-17-pro",
-  "device-iphone-17-pro-max",
-  "device-iphone-16",
-  "device-iphone-16-plus",
-  "device-iphone-16-pro",
-  "device-iphone-16-pro-max",
-  "device-iphone-15",
-  "device-iphone-15-plus",
-  "device-iphone-15-pro",
-  "device-iphone-15-pro-max",
-  "device-iphone-14",
-  "device-iphone-14-plus",
-  "device-iphone-14-pro",
-  "device-iphone-14-pro-max",
-  "device-iphone-13",
-  "device-iphone-13-mini",
-  "device-iphone-13-pro",
-  "device-iphone-13-pro-max",
-]);
-
 export function getMockAssessment(device: Device): AssessmentDefinition {
-  const isIPhone = device.category === "phone" && device.brand === "Apple" && currentMockIPhoneIds.has(device.id);
+  const isIPhone = device.category === "phone" && device.brand === "Apple" && detailedIPhoneIds.has(device.id);
 
   if (isIPhone) {
     return {

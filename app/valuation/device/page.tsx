@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
-import { mockDevices } from "@/adapters/mock/devices";
+import { MockValuationService } from "@/adapters/mock/valuation";
 import { AppShell } from "@/components/app-shell";
+import type { CatalogDevice } from "@/domain/device-catalog";
 import type { Device, DeviceCategory } from "@/domain/types";
 import { continueWithDevice, readValuationSession, type StoredValuationSession } from "@/lib/valuation-session";
 
@@ -29,6 +30,7 @@ const specLabels: Record<string, string> = {
 };
 
 const analyticsService = new MockAnalyticsService();
+const valuationService = new MockValuationService();
 
 const progressSteps = ["สินค้า", "สภาพ", "ราคาที่ต้องการ", "ผลประเมิน"];
 
@@ -38,20 +40,52 @@ const getStoredSessionRaw = () => window.sessionStorage.getItem("atlast.valuatio
 export default function DevicePage() {
   const hydrated = useSyncExternalStore(noSessionSubscription, () => true, () => false);
   const rawSession = useSyncExternalStore(noSessionSubscription, getStoredSessionRaw, () => null);
+  const [catalog, setCatalog] = useState<CatalogDevice[] | null>(null);
+  const [catalogError, setCatalogError] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    valuationService.getDeviceCatalog().then(
+      (devices) => {
+        if (active) setCatalog(devices);
+      },
+      () => {
+        if (active) setCatalogError(true);
+      },
+    );
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const savedDevice = useMemo(() => {
-    if (!rawSession) return undefined;
+    if (!rawSession || !catalog) return undefined;
     try {
       const stored = JSON.parse(rawSession) as StoredValuationSession;
-      return mockDevices.some((device) => device.id === stored.device?.id) ? stored.device : undefined;
+      return catalog.some((device) => device.id === stored.device?.id) ? stored.device : undefined;
     } catch {
       return undefined;
     }
-  }, [rawSession]);
+  }, [catalog, rawSession]);
   if (!hydrated) return null;
-  return <DeviceSelection initialDevice={savedDevice} />;
+  if (!catalog && !catalogError) {
+    return (
+      <AppShell title="กำลังโหลดรายการสินค้า" description="ข้อมูลตัวอย่างสำหรับทดสอบ" compactHeader>
+        <p className="text-sm text-slate-500" role="status">กำลังโหลด…</p>
+      </AppShell>
+    );
+  }
+  if (catalogError || !catalog) {
+    return (
+      <AppShell title="ไม่สามารถโหลดรายการสินค้าได้" description="โปรดลองเปิดหน้านี้อีกครั้ง" compactHeader>
+        <div />
+      </AppShell>
+    );
+  }
+  return <DeviceSelection catalog={catalog} initialDevice={savedDevice} />;
 }
 
-function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
+function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[]; initialDevice?: Device }) {
   const router = useRouter();
   const continuing = useRef(false);
   const [selectedCategory, setSelectedCategory] = useState<DeviceCategory | "">(initialDevice?.category ?? "");
@@ -62,12 +96,12 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
   const [editingStage, setEditingStage] = useState<SelectionStage | null>(null);
 
   const visibleDevices = useMemo(
-    () => (selectedCategory ? mockDevices.filter((device) => device.category === selectedCategory) : []),
-    [selectedCategory],
+    () => (selectedCategory ? catalog.filter((device) => device.category === selectedCategory) : []),
+    [catalog, selectedCategory],
   );
 
   const brands = useMemo(
-    () => Array.from(new Set(visibleDevices.map((device) => device.brand))).sort(),
+    () => Array.from(new Set(visibleDevices.map((device) => device.brand))).sort((left, right) => left.localeCompare(right, "en", { sensitivity: "base" })),
     [visibleDevices],
   );
 
@@ -76,14 +110,14 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
       visibleDevices.filter(
         (device) =>
           device.brand === selectedBrand &&
-          [device.model, device.variant ?? ""].join(" ").toLowerCase().includes(searchQuery.trim().toLowerCase()),
+          [device.model, device.variant ?? "", String(device.releaseYear)].join(" ").toLowerCase().includes(searchQuery.trim().toLowerCase()),
       ),
     [searchQuery, selectedBrand, visibleDevices],
   );
 
   const selectedDevice = useMemo(
-    () => mockDevices.find((device) => device.id === selectedModel) ?? null,
-    [selectedModel],
+    () => catalog.find((device) => device.id === selectedModel) ?? null,
+    [catalog, selectedModel],
   );
 
   const selectedSpecs = selectedDevice
@@ -92,7 +126,7 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
 
   const isSpecsComplete =
     selectedSpecs.length > 0 && selectedSpecs.every(([key, value]) =>
-      (selectedDevice?.specOptions?.[key] ?? [value]).includes(specSelections[key]),
+      selectedDevice?.specOptions?.[key]?.some((option) => option.value === specSelections[key]) ?? specSelections[key] === value,
     );
 
   const activeStage: SelectionStage = !selectedCategory
@@ -141,13 +175,13 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
     }
 
     if (activeStage === "brand") {
-      setSelectedCategory("");
+        setSelectedCategory("");
     } else if (activeStage === "model") {
-      setSelectedBrand("");
+        setSelectedBrand("");
       setSelectedModel("");
       setSpecSelections({});
     } else if (activeStage === "specs" || activeStage === "complete") {
-      setSelectedModel("");
+        setSelectedModel("");
       setSpecSelections({});
     } else {
       router.push("/");
@@ -164,7 +198,11 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
     continuing.current = true;
     const previous = readValuationSession();
     // Option lists belong to the mock catalog, not the persisted device snapshot.
-    const { specOptions, ...deviceSnapshot } = selectedDevice;
+    const { brandId, releaseYear, sortOrder, sources, specOptions, ...deviceSnapshot } = selectedDevice;
+    void brandId;
+    void releaseYear;
+    void sortOrder;
+    void sources;
     void specOptions;
     const stored = continueWithDevice({ ...deviceSnapshot, specs: Object.fromEntries(
       selectedSpecs.map(([key]) => [key, specSelections[key]]),
@@ -361,7 +399,7 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
                       <span>
                         <span className="block font-semibold text-slate-900">{device.model}</span>
                         <span className="mt-1 block text-sm text-slate-500">
-                          {device.brand} · {categoryMeta[device.category].label}
+                          {device.brand} · {device.releaseYear} · {categoryMeta[device.category].label}
                           {device.variant ? ` · ${device.variant}` : ""}
                         </span>
                       </span>
@@ -392,20 +430,20 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
                 {selectedSpecs.map(([key, value]) => (
                   <div key={key} className="rounded-2xl bg-slate-50 p-4">
                     <p className="text-sm font-medium text-slate-700">{specLabels[key] ?? key}</p>
-                    {(selectedDevice.specOptions?.[key] ?? [value]).map((option) => (
+                    {(selectedDevice.specOptions?.[key] ?? [{ id: `fixed-${key}`, value, label: value }]).map((option) => (
                       <button
-                        key={option}
+                        key={option.id}
                         type="button"
-                        onClick={() => handleSpecChange(key, option)}
-                        aria-pressed={specSelections[key] === option}
+                        onClick={() => handleSpecChange(key, option.value)}
+                        aria-pressed={specSelections[key] === option.value}
                         className={[
                           "mt-3 w-full rounded-full border px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
-                          specSelections[key] === option
+                          specSelections[key] === option.value
                             ? "border-[var(--color-brand-primary)] bg-white text-slate-900"
                             : "border-slate-200 bg-white text-slate-600 hover:border-[var(--color-brand-primary)]",
                         ].join(" ")}
                       >
-                        {option}
+                        {option.label}
                       </button>
                     ))}
                   </div>
@@ -413,6 +451,7 @@ function DeviceSelection({ initialDevice }: { initialDevice?: Device }) {
               </div>
             </div>
           ) : null}
+
         </section>
 
         {isComplete ? (

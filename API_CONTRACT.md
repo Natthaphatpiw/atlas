@@ -2,7 +2,7 @@
 
 ## A. Current frontend service boundaries
 
-No HTTP backend is implemented. Pages currently instantiate mock adapters; Device consumes `mockDevices` directly. Service interfaces provide replacement boundaries, but the current frontend is not fully isolated from concrete mocks.
+No HTTP backend is implemented. Pages currently instantiate mock adapters. Device requests the catalog through `ValuationService`; the mock adapter reads the frontend data modules, preserving the replacement boundary for a future backend catalog.
 
 ### ValuationService
 
@@ -14,7 +14,7 @@ interface MockValuationResult {
 }
 
 interface ValuationService {
-  getDeviceCatalog(): Promise<Device[]>;
+  getDeviceCatalog(): Promise<CatalogDevice[]>;
   getDeviceAssessment(device: Device): Promise<AssessmentDefinition>;
   /** Legacy v1 fixture API; not used by the seller assessment. */
   getConditionQuestions(deviceCategory: Device["category"]): Promise<ConditionQuestion[]>;
@@ -23,7 +23,7 @@ interface ValuationService {
 }
 ```
 
-- `getDeviceCatalog` exists, but Device currently imports the fixture catalog directly.
+- `getDeviceCatalog` returns research-backed frontend mock records with catalog-only brand, release-order, spec-option and provenance metadata. The Device page persists only the compatible `Device` snapshot. A future backend may own catalog records behind this method; database technology and transport are not selected here.
 - `getDeviceAssessment` returns the applicable data-driven seller assessment for the selected device. Its current mock fixture provides detailed iPhone coverage and a basic non-iPhone fallback. It is not a verified inspection or a pricing rule.
 - `getConditionQuestions` is a legacy v1 fixture API. The v2 assessment and its prerequisites do not use it.
 - `getMockValuationResult` is the active result boundary used by Result and Seller Contact; Request Submitted displays the saved range snapshot. It returns a fixed THB range of 24500–27000 and does not calculate from session inputs.

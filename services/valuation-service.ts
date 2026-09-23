@@ -1,4 +1,5 @@
 import type { AssessmentDefinition } from "@/domain/assessment";
+import type { CatalogDevice } from "@/domain/device-catalog";
 import type { ConditionQuestion, CurrencyCode, Device, EstimatedPrice, ValuationSession } from "@/domain/types";
 
 export interface MockValuationResult {
@@ -8,7 +9,7 @@ export interface MockValuationResult {
 }
 
 export interface ValuationService {
-  getDeviceCatalog(): Promise<Device[]>;
+  getDeviceCatalog(): Promise<CatalogDevice[]>;
   getDeviceAssessment(device: Device): Promise<AssessmentDefinition>;
   /** Legacy v1 fixture API; not used by the seller assessment. */
   getConditionQuestions(deviceCategory: Device["category"]): Promise<ConditionQuestion[]>;
