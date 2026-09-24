@@ -136,6 +136,8 @@ test("mock receipt is a non-PII browser-local prototype receipt", async () => {
   assert.ok(!serialized.includes("ada-line"));
   assert.equal("contact" in receipt, false);
   assert.equal("source" in receipt, false);
+  assert.equal("devicePhotos" in receipt, false);
+  assert.doesNotMatch(serialized, /devicePhotos|previewUrl|object:|blob:/i);
 });
 
 test("only a matching receipt with a complete current context advances the session", async () => {

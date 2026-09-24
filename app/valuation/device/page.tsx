@@ -1,16 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent } from "react";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { MockValuationService } from "@/adapters/mock/valuation";
 import { AppShell } from "@/components/app-shell";
 import type { CatalogDevice } from "@/domain/device-catalog";
 import type { Device, DeviceCategory } from "@/domain/types";
+import { devicePhotoErrorMessage, MAX_DEVICE_PHOTOS, removeDevicePhoto, selectDevicePhotos, type DevicePhotoSelectionError } from "@/lib/device-photos";
 import { continueWithDevice, readValuationSession, type StoredValuationSession } from "@/lib/valuation-session";
 
 type SelectionStage = "category" | "brand" | "model" | "specs" | "complete";
 type SpecKey = keyof Device["specs"];
+type SelectedDevicePhoto = { id: string; file: File; previewUrl: string };
 
 const categoryMeta: Record<DeviceCategory, { label: string; icon: string; description: string }> = {
   phone: { label: "โทรศัพท์มือถือ", icon: "📱", description: "มือถือและสมาร์ทโฟน" },
@@ -88,12 +90,25 @@ export default function DevicePage() {
 function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[]; initialDevice?: Device }) {
   const router = useRouter();
   const continuing = useRef(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const photoSequence = useRef(0);
+  const selectedPhotosRef = useRef<SelectedDevicePhoto[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<DeviceCategory | "">(initialDevice?.category ?? "");
   const [selectedBrand, setSelectedBrand] = useState(initialDevice?.brand ?? "");
   const [selectedModel, setSelectedModel] = useState(initialDevice?.id ?? "");
   const [searchQuery, setSearchQuery] = useState("");
   const [specSelections, setSpecSelections] = useState<Record<string, string>>(() => Object.fromEntries(Object.entries(initialDevice?.specs ?? {}).filter(([, value]) => Boolean(value))));
   const [editingStage, setEditingStage] = useState<SelectionStage | null>(null);
+  const [selectedPhotos, setSelectedPhotos] = useState<SelectedDevicePhoto[]>([]);
+  const [photoErrors, setPhotoErrors] = useState<DevicePhotoSelectionError[]>([]);
+
+  useEffect(() => {
+    selectedPhotosRef.current = selectedPhotos;
+  }, [selectedPhotos]);
+
+  useEffect(() => () => {
+    selectedPhotosRef.current.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+  }, []);
 
   const visibleDevices = useMemo(
     () => (selectedCategory ? catalog.filter((device) => device.category === selectedCategory) : []),
@@ -142,7 +157,16 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
   const stageIsOpen = (stage: SelectionStage) => activeStage === stage || editingStage === stage;
   const isComplete = activeStage === "complete";
 
+  const clearPhotos = () => {
+    setSelectedPhotos((current) => {
+      current.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+      return [];
+    });
+    setPhotoErrors([]);
+  };
+
   const handleCategoryChange = (category: DeviceCategory) => {
+    if (category !== selectedCategory) clearPhotos();
     setSelectedCategory(category);
     setSelectedBrand("");
     setSelectedModel("");
@@ -152,6 +176,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
   };
 
   const handleBrandChange = (brand: string) => {
+    if (brand !== selectedBrand) clearPhotos();
     setSelectedBrand(brand);
     setSelectedModel("");
     setSpecSelections({});
@@ -159,13 +184,40 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
   };
 
   const handleModelChange = (model: string) => {
+    if (model !== selectedModel) clearPhotos();
     setSelectedModel(model);
     setSpecSelections({});
     setEditingStage(null);
   };
 
   const handleSpecChange = (key: string, value: string) => {
+    if (specSelections[key] !== value) clearPhotos();
     setSpecSelections((current) => ({ ...current, [key]: value }));
+  };
+
+  const handlePhotoSelection = (event: ChangeEvent<HTMLInputElement>) => {
+    const result = selectDevicePhotos(selectedPhotos.length, Array.from(event.target.files ?? []));
+    setPhotoErrors(result.errors);
+    if (result.accepted.length > 0) {
+      setSelectedPhotos((current) => [
+        ...current,
+        ...result.accepted.map((file) => ({
+          id: `device-photo-${++photoSequence.current}`,
+          file,
+          previewUrl: URL.createObjectURL(file),
+        })),
+      ]);
+    }
+    event.target.value = "";
+  };
+
+  const handlePhotoRemoval = (id: string) => {
+    setSelectedPhotos((current) => {
+      const photo = current.find((item) => item.id === id);
+      if (photo) URL.revokeObjectURL(photo.previewUrl);
+      return removeDevicePhoto(current, id);
+    });
+    setPhotoErrors([]);
   };
 
   const handleBack = () => {
@@ -175,13 +227,16 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
     }
 
     if (activeStage === "brand") {
-        setSelectedCategory("");
+      clearPhotos();
+      setSelectedCategory("");
     } else if (activeStage === "model") {
-        setSelectedBrand("");
+      clearPhotos();
+      setSelectedBrand("");
       setSelectedModel("");
       setSpecSelections({});
     } else if (activeStage === "specs" || activeStage === "complete") {
-        setSelectedModel("");
+      clearPhotos();
+      setSelectedModel("");
       setSpecSelections({});
     } else {
       router.push("/");
@@ -452,6 +507,72 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
             </div>
           ) : null}
 
+          {selectedDevice && isSpecsComplete ? (
+            <div className="border-b border-slate-200 py-8">
+              <StageHeading eyebrow="เพิ่มเติม" title="เพิ่มรูปอุปกรณ์ (ไม่บังคับ)" />
+              <p id="device-photo-help" className="max-w-2xl text-sm leading-6 text-slate-600">
+                รูปช่วยให้บอกบริบทของอุปกรณ์ได้ รูปจะอยู่ในเบราว์เซอร์นี้ชั่วคราวและยังไม่ได้อัปโหลดหรือใช้ในการประเมินราคา
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4">
+                <p className="text-sm font-medium text-slate-700" aria-live="polite">
+                  {selectedPhotos.length} / {MAX_DEVICE_PHOTOS} รูป
+                </p>
+                <button
+                  type="button"
+                  onClick={() => photoInputRef.current?.click()}
+                  disabled={selectedPhotos.length >= MAX_DEVICE_PHOTOS}
+                  aria-describedby={photoErrors.length > 0 ? "device-photo-error" : "device-photo-help"}
+                  className="rounded-full border border-[var(--color-brand-primary)] bg-white px-4 py-2 text-sm font-semibold text-[var(--color-brand-primary-hover)] transition-colors hover:bg-[var(--color-brand-primary-soft)] disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
+                >
+                  เพิ่มรูป
+                </button>
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  onChange={handlePhotoSelection}
+                  className="sr-only"
+                />
+              </div>
+              <p className="mt-3 text-xs text-slate-500">รองรับ JPG, PNG และ WebP สูงสุด 10 MB ต่อรูป</p>
+
+              {photoErrors.length > 0 ? (
+                <div id="device-photo-error" role="alert" className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  {photoErrors.map((error) => <p key={`${error.fileName}-${error.reason}`}>{devicePhotoErrorMessage(error)}</p>)}
+                </div>
+              ) : null}
+
+              {selectedPhotos.length > 0 ? (
+                <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="รูปอุปกรณ์ที่เลือก">
+                  {selectedPhotos.map((photo, index) => (
+                    <li key={photo.id} className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_8px_24px_rgba(10,26,22,0.04)]">
+                      {/* Object URLs are browser-memory previews and cannot use Next image optimization. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={photo.previewUrl}
+                        alt={`ตัวอย่างรูปอุปกรณ์ ${index + 1}: ${photo.file.name}`}
+                        className="aspect-square w-full rounded-xl bg-slate-100 object-cover"
+                      />
+                      <div className="mt-2 flex items-center justify-between gap-2">
+                        <p className="min-w-0 truncate text-xs text-slate-600" title={photo.file.name}>{photo.file.name}</p>
+                        <button
+                          type="button"
+                          onClick={() => handlePhotoRemoval(photo.id)}
+                          aria-label={`ลบรูปอุปกรณ์ ${index + 1}: ${photo.file.name}`}
+                          className="shrink-0 rounded-full px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600"
+                        >
+                          ลบ
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ) : null}
         </section>
 
         {isComplete ? (

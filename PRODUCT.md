@@ -9,6 +9,7 @@ The seller journey is:
 Landing → Device Selection → Seller Device Assessment → Expected Selling Price → Preliminary Valuation → Seller Contact → Request Submitted → Connect LINE.
 
 - Device selection progresses through category, brand, model and structured specifications using a research-backed mock catalog. Its phone coverage is curated across Apple, Samsung, Google, Xiaomi, OPPO, vivo, realme, OnePlus, HONOR, Huawei and Sony, with first-release years from 2020–2026 and newest models listed first. Storage choices are model-specific; colors appear only where the maintained fixture has reliable source coverage.
+- After required specs, sellers may optionally select up to five JPEG, PNG, or WebP photos, each no larger than 10MB. The browser displays local previews only. Atlas does not upload, analyze, verify, retain, or use these photos in the mock valuation, and they can disappear after refresh or route remounting.
 - The Seller Device Assessment is structured and progressive: one manageable question group is shown at a time, with assessment sub-progress inside the main สภาพ stage. Valid answers save locally as they change; Continue confirms the group and advances. Answers use stable question and option identities, while Thai labels remain display copy. Saved answers can be reviewed by section and edited before continuing.
 - The current detailed mock covers the Apple iPhones in the catalog. It covers device basics, physical condition, functionality, battery, repair/parts history, account/security and organization management. Repair follow-up questions and feature questions appear only when applicable. Other brands and categories receive a minimal seller-reported fallback rather than iPhone-specific questions.
 - These answers are seller-reported preliminary information. Atlas does not inspect or technically verify condition, ownership, Find My, Activation Lock, lost status, MDM, supervision, configuration profiles, repair provenance or battery details in this MVP. A future physical inspection may verify or override the report before any final price is confirmed.
@@ -31,6 +32,8 @@ There is no approved production valuation algorithm. The older formula-based `es
 Selling, pawn and secured-transaction concepts remain business hypotheses for future phases. They must not be represented as operational capabilities of this seller MVP.
 
 Future continuation may follow Atlas → LINE OA → operational/Astly integration. These integrations require separate product and API decisions. Investor matching, contracts, payment, KYC, renewal interest, redemption, logistics, warehousing and staff/inspection systems are outside the current MVP.
+
+A future request may reference `devicePhotos[]` after an approved upload and storage design exists. The current prototype does not define an upload API, storage vendor, durable photo reference, or backend retention behavior.
 
 ## Development principles
 

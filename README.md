@@ -6,6 +6,7 @@ Atlas is a Thai-first, responsive seller valuation Frontend MVP. It collects dev
 
 - Next.js 16.3.5 App Router, React 19, TypeScript and Tailwind CSS 4.
 - Progressive device selection, a saved structured Seller Device Assessment, safe-integer THB price entry, preliminary results, seller contact, a mock request receipt and a prototype LINE continuation screen.
+- Device Selection optionally previews up to five seller-selected JPEG, PNG, or WebP photos (10MB each). They are browser-memory previews only: they are not uploaded, valued, analyzed, included in analytics/receipts, or retained after refresh or route remounting.
 - The research-backed mock catalog contains 81 phones across 11 brands, spanning first-release years 2020–2026, plus the existing MacBook fixture. Model storage comes from manufacturer sources; verified colors remain on the Apple fixtures and the compatible Galaxy S24 Ultra snapshot. It is curated frontend UX test data, not authoritative production or region-wide inventory.
 - Valuation progress lives in browser `sessionStorage`, not a backend.
 - Result, Seller Contact and Request Submitted share a fixed mock ฿24,500–฿27,000 range. The unused demo formula is not production pricing.
@@ -36,6 +37,7 @@ Atlas is a Thai-first, responsive seller valuation Frontend MVP. It collects dev
 - `data/devices/`: brand-scoped research-backed catalog fixtures and source metadata.
 - `adapters/mock/`: mock catalog access, assessment definitions, fixed range, mock request/legacy Lead and console analytics.
 - `lib/valuation-session.ts`: browser-local `{ session, device }`, progress updates and device identity comparison.
+- `lib/device-photos.ts`: browser-only photo selection limits and validation; it has no persistence or upload behavior.
 
 Pages currently instantiate mock adapters; Device loads catalog records through `ValuationService`. The mock adapter reads the frontend data layer, and a future backend catalog can replace that adapter without changing the selection page contract. Same device ID/spec configuration preserves session progress; a changed configuration restarts dependent state. Once a mock request receipt exists, earlier valuation screens are read-only and link to the receipt; starting another prototype trial requires a fresh browser session. The assessment is seller-reported preliminary information, never an Atlas or Apple verified inspection. Backend authority and unresolved decisions are described in API_CONTRACT.md and DATA_MODEL.md.
 

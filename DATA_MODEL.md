@@ -63,6 +63,12 @@ The mock catalog data lives in brand-scoped modules under `data/devices/`. `Cata
 
 Mock-only `CatalogDevice.specOptions` uses stable option IDs separate from displayed/stored values. Storage is present for each phone; colors are maintained only where reliable source coverage is available. Source region is recorded as Thailand, global or regional and is not shown to sellers. Regional/global entries can differ from Thailand availability, and this curated catalog is not exhaustive. Confirmation stores only the compatible `Device` snapshot, without catalog metadata or option lists. Model changes clear dependent specs; changing one spec preserves the other selections. Existing iPhone IDs, the iPhone 15 Pro 256GB / Natural Titanium / 5G default and the Galaxy S24 Ultra identity remain compatible with stored sessions. This is frontend UX/development data, not authoritative production inventory or a production schema.
 
+### Ephemeral device photos
+
+Device Selection may hold up to five supported image `File` objects in component memory for local thumbnails. Runtime validation accepts JPEG, PNG and WebP files up to 10MB each. Neither the files, filenames, bytes, Blob objects, object URLs, Base64 data, nor image metadata is written to `sessionStorage`, localStorage, analytics, `RequestContext`, or the mock receipt. Object URLs are revoked when a photo is removed, when the selected device/configuration changes, and when the Device page unmounts. Refresh and route remounting therefore intentionally lose selected photos. Photos do not participate in device identity or downstream invalidation because the mock valuation does not use them.
+
+Future production may represent `devicePhotos[]` through a backend-approved upload and storage design. No upload contract, provider, object reference, signed URL, storage bucket, or durable backend photo model is defined by this prototype.
+
 ### SellerAssessment
 
 ```ts

@@ -30,6 +30,8 @@ interface ValuationService {
 - `estimateValue` is unused formula-based demo logic. It rejects v2 seller assessments and is not an approved production valuation engine.
 - The active range is preliminary and non-binding. There is no persisted result ID, approved quote, production confidence, provenance or expiry contract.
 
+Device Selection supports browser-memory-only optional photo previews. They are deliberately absent from `ValuationRequestInput`, `RequestContext`, analytics, session storage and the mock receipt. A future backend request may support `devicePhotos[]` after product-approved upload orchestration and storage references are designed; this MVP defines neither mechanism nor vendor.
+
 ### RequestService
 
 ```ts
