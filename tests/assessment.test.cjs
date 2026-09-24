@@ -170,6 +170,19 @@ test("applies feature and category-specific questions and requires every visible
   assert.equal(assessment.assessmentComplete(definition, iphone, [...completeIphoneAnswers(), answer("battery_health_percentage", { kind: "number", value: 101 })]), false);
 });
 
+test("assessment progress follows applicable groups and recalculates after branching answers", () => {
+  const definition = getMockAssessment(iphone);
+  const initial = assessment.assessmentProgress(definition, iphone, [], null);
+  assert.equal(initial.groupIndex, 0);
+  assert.equal(initial.answered, 0);
+  assert.ok(initial.total > 0);
+
+  const repairBranch = assessment.assessmentProgress(definition, iphone, [choice("repair_or_parts_replaced", "yes")], initial.currentGroupId);
+  assert.ok(repairBranch.total > initial.total);
+  assert.equal(repairBranch.answered, 1);
+  assert.equal(repairBranch.percentage, (repairBranch.answered / repairBranch.total) * 100);
+});
+
 test("new assessment retains legacy answers, keeps its session ID, and resets downstream pricing", () => {
   const stored = {
     device: iphone,

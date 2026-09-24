@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import type { AssessmentAnswer, AssessmentDefinition, AssessmentQuestion, AssessmentValue } from "@/domain/assessment";
-import { answerError, answerIdentity, answerLabel, applicableQuestions, assessmentComplete, isCurrentAssessment, parseNumericDraft, pruneAnswers } from "@/lib/assessment";
+import { answerError, answerIdentity, answerLabel, applicableQuestions, assessmentComplete, assessmentProgress, isCurrentAssessment, parseNumericDraft, pruneAnswers } from "@/lib/assessment";
 import { hasReachedStage, saveAssessmentAnswers, type StoredValuationSession } from "@/lib/valuation-session";
 
-const focus = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]";
-const primary = `w-full rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 font-semibold text-white hover:bg-[var(--color-action-primary-hover)] ${focus}`;
+const focus = "atlas-focus";
+const primary = `atlas-interactive ${focus} w-full rounded-[var(--radius-control)] border border-[var(--color-action-primary)] bg-[var(--color-action-primary)] px-5 py-3.5 font-semibold text-white`;
 const analytics = new MockAnalyticsService();
 
 export function DeviceAssessment({ initial, definition }: { initial: StoredValuationSession; definition: AssessmentDefinition }) {
@@ -28,8 +29,10 @@ export function DeviceAssessment({ initial, definition }: { initial: StoredValua
   const confirmed = useRef(new Map(answers.map((answer) => [answer.questionId, JSON.stringify(answer.value)])));
   const navigating = useRef(false);
   const questions = applicableQuestions(definition, initial.device, answers);
-  const groupIds = [...new Set(questions.map((question) => question.groupId))];
-  const group = questions.filter((question) => question.groupId === groupId);
+  const progress = assessmentProgress(definition, initial.device, answers, groupId);
+  const groupIds = progress.groupIds;
+  const activeGroupId = progress.currentGroupId;
+  const group = questions.filter((question) => question.groupId === activeGroupId);
   const sectionId = group[0]?.sectionId;
   const sectionIndex = definition.sections.findIndex((section) => section.id === sectionId);
   const complete = assessmentComplete(definition, initial.device, answers);
@@ -87,7 +90,7 @@ export function DeviceAssessment({ initial, definition }: { initial: StoredValua
       setGroupId(missing?.groupId ?? null);
       if (!missing) setEditing(false);
     } else {
-      setGroupId(groupIds[groupIds.indexOf(groupId ?? "") + 1] ?? missing?.groupId ?? null);
+      setGroupId(groupIds[groupIds.indexOf(activeGroupId ?? "") + 1] ?? missing?.groupId ?? null);
     }
   };
 
@@ -105,24 +108,15 @@ export function DeviceAssessment({ initial, definition }: { initial: StoredValua
     setShowErrors(false);
     if (editing) { setEditing(false); setGroupId(null); return; }
     if (review && groupIds.length) { setGroupId(groupIds[groupIds.length - 1]); return; }
-    const index = groupIds.indexOf(groupId ?? "");
+    const index = groupIds.indexOf(activeGroupId ?? "");
     if (index > 0) setGroupId(groupIds[index - 1]);
     else router.push("/valuation/device");
   };
 
   return (
-    <AppShell title="ประเมินสภาพด้วยตนเอง" description="ข้อมูลจากผู้ขายสำหรับราคาประเมินเบื้องต้น" compactHeader
-      backAction={<button type="button" onClick={back} aria-label="ย้อนกลับ" className={`rounded-full p-1 text-xl text-slate-700 ${focus}`}>←</button>}>
+    <AppShell title="ประเมินสภาพด้วยตนเอง" description="ข้อมูลจากผู้ขายสำหรับราคาประเมินเบื้องต้น" compactHeader flowStage="condition" backAction={<span className="hidden" aria-hidden="true" />}>
       <div className="mx-auto max-w-[820px]">
-        <nav aria-label="ความคืบหน้าการประเมินราคา" className="mb-6 flex gap-2">
-          {["สินค้า", "สภาพ", "ราคา", "ข้อมูลติดต่อ"].map((label, index) => (
-            <div key={label} aria-current={index === 1 ? "step" : undefined} className="min-w-0 flex-1">
-              <div className={`mb-2 h-1.5 rounded-full ${index <= 1 ? "bg-[var(--color-brand-primary)]" : "bg-slate-200"}`} />
-              <span className={`text-[11px] sm:text-xs ${index === 1 ? "font-semibold text-slate-900" : "text-slate-500"}`}>{label}</span>
-            </div>
-          ))}
-        </nav>
-        <div className="mb-5 rounded-2xl bg-[var(--color-surface-subtle)] p-4">
+        <div className="mb-6 rounded-[var(--radius-surface)] border border-[var(--color-border-strong)] bg-[var(--color-surface-subtle)] p-4 shadow-[var(--shadow-tactile-sm)]">
           <p className="font-semibold text-slate-900">{initial.device.model}</p>
           <p className="mt-1 text-sm text-slate-600">{Object.values(initial.device.specs).filter(Boolean).join(" · ")}</p>
           <p className="mt-3 text-sm leading-6 text-slate-600">ข้อมูลนี้เป็นคำตอบของผู้ขาย ยังไม่ใช่ผลตรวจสอบจาก Atlas การตรวจเครื่องจริงภายหลังอาจเปลี่ยนสภาพที่ยืนยันและราคาสุดท้าย</p>
@@ -147,32 +141,34 @@ export function DeviceAssessment({ initial, definition }: { initial: StoredValua
               {definition.sections.map((section) => {
                 const relevant = questions.filter((question) => question.sectionId === section.id);
                 if (!relevant.length) return null;
-                return <section key={section.id} aria-labelledby={`review-${section.id}`} className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
+                return <section key={section.id} aria-labelledby={`review-${section.id}`} className="rounded-[var(--radius-surface)] border border-[var(--color-border-strong)] bg-white p-4 shadow-[var(--shadow-tactile-sm)] sm:p-5">
                   <h3 id={`review-${section.id}`} className="font-semibold text-slate-900">{section.label}</h3>
                   <dl className="mt-3 divide-y divide-slate-100">
                     {relevant.map((question) => {
                       const answer = answers.find((item) => item.questionId === question.id);
                       return <div key={question.id} className="flex items-start justify-between gap-3 py-3">
                         <div className="min-w-0"><dt className="text-sm leading-6 text-slate-500">{question.label}</dt><dd className="mt-1 break-words text-sm font-medium text-slate-900">{answer ? answerLabel(question, answer.value) : question.required ? "ยังไม่ได้ตอบ" : "ไม่ได้ระบุ (ไม่บังคับ)"}</dd></div>
-                        <button type="button" aria-label={`แก้ไข ${question.label}`} className={`shrink-0 rounded-full px-2 py-1.5 text-sm font-medium text-[var(--color-brand-primary-hover)] ${focus}`} onClick={() => { setEditing(true); setGroupId(question.groupId); setShowErrors(false); }}>แก้ไข</button>
+                        <button type="button" aria-label={`แก้ไข ${question.label}`} className={`atlas-interactive ${focus} shrink-0 rounded-[var(--radius-control)] border border-[var(--color-action-primary)] bg-white px-3 py-2 text-sm font-semibold text-[var(--color-action-primary)] hover:bg-[var(--color-brand-primary-soft)]`} onClick={() => { setEditing(true); setGroupId(question.groupId); setShowErrors(false); }}>แก้ไข</button>
                       </div>;
                     })}
                   </dl>
                 </section>;
               })}
             </div>
-            <button type="button" disabled={!complete} className={`${primary} disabled:cursor-not-allowed disabled:opacity-40`} onClick={finish}>ยืนยันคำตอบและดูผลประเมิน →</button>
+            <FlowActions back={<FlowBack onClick={back} />} forward={<FlowForward type="button" disabled={!complete} onClick={finish}>ยืนยันคำตอบและดูผลประเมิน</FlowForward>} />
           </section>
         ) : (
           <form ref={form} onSubmit={continueGroup} noValidate>
-            <p className="text-xs font-medium text-[var(--color-brand-primary-hover)]" role="status">ส่วนที่ {sectionIndex + 1} จาก {definition.sections.length} · กลุ่มคำถาม {groupIds.indexOf(groupId) + 1} จาก {groupIds.length} ที่เกี่ยวข้อง</p>
+            <div className="rounded-[var(--radius-surface)] border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] p-4 shadow-[var(--shadow-tactile-sm)]" role="status">
+              <div className="h-2 overflow-hidden rounded-full atlas-progress-track"><div className="atlas-progress-fill h-full rounded-full" style={{ width: `${progress.percentage}%` }} /></div>
+              <p className="mt-3 text-xs font-semibold text-[var(--color-action-primary)]">ส่วนที่ {sectionIndex + 1} จาก {definition.sections.length} · กลุ่มคำถาม {progress.groupIndex + 1} จาก {groupIds.length} ที่เกี่ยวข้อง</p>
+            </div>
             <h2 ref={heading} tabIndex={-1} className={`mt-2 text-2xl font-semibold text-slate-900 ${focus}`}>{definition.sections[sectionIndex]?.label}</h2>
             <p className="mt-2 text-xs text-slate-500">คำถามถัดไปปรับตามคำตอบของคุณ เลือก “ไม่ทราบ” ได้เมื่อไม่แน่ใจ</p>
             <div className="my-6 space-y-5">
               {group.map((question) => <AssessmentField key={question.id} question={question} value={answers.find((answer) => answer.questionId === question.id)?.value} showErrors={showErrors} onChange={(value) => changeAnswer(question, value)} />)}
             </div>
-            <button type="submit" className={primary}>{editing ? "บันทึกและกลับไปตรวจสอบ →" : "ดำเนินการต่อ →"}</button>
-            {editing ? <button type="button" onClick={back} className={`mt-3 w-full rounded-full px-4 py-3 text-sm text-slate-600 ${focus}`}>กลับไปตรวจสอบคำตอบ</button> : null}
+            <FlowActions back={<FlowBack onClick={back} />} forward={<FlowForward type="submit">{editing ? "บันทึกและกลับไปตรวจสอบ" : "ดำเนินการต่อ"}</FlowForward>} />
           </form>
         )}
       </div>
@@ -192,7 +188,7 @@ function AssessmentField({ question, value, showErrors, onChange }: {
   const helpId = `help-${question.id}`;
   const errorId = `error-${question.id}`;
   const describedBy = `${helpId}${error ? ` ${errorId}` : ""}`;
-  return <fieldset id={`field-${question.id}`} className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 sm:p-5" aria-describedby={describedBy}>
+  return <fieldset id={`field-${question.id}`} className="min-w-0 rounded-[var(--radius-surface)] border border-[var(--color-border-strong)] bg-white p-4 shadow-[var(--shadow-tactile-sm)] sm:p-5" aria-describedby={describedBy}>
     <legend className="max-w-full px-1 text-base font-semibold leading-7 text-slate-900">{question.label}{!question.required ? <span className="ml-2 text-xs font-normal text-slate-500">ไม่บังคับ</span> : null}</legend>
     <p id={helpId} className="mb-3 text-xs leading-5 text-slate-500">{question.help}</p>
     {question.type === "number" ? (
@@ -201,7 +197,7 @@ function AssessmentField({ question, value, showErrors, onChange }: {
           {question.label}
           <span className="mt-2 flex items-center gap-3">
             <input type="text" inputMode="numeric" autoComplete="off" value={numberText} aria-invalid={Boolean(error)} aria-describedby={describedBy}
-              className={`min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3 text-base aria-invalid:border-rose-500 ${focus}`}
+              className={`atlas-focus min-w-0 flex-1 rounded-[var(--radius-control)] border border-[var(--color-border-strong)] px-4 py-3 text-base aria-invalid:border-rose-500`}
               onChange={(event) => {
                 const text = event.target.value;
                 setNumberText(text); setNumberTouched(true);
@@ -220,9 +216,9 @@ function AssessmentField({ question, value, showErrors, onChange }: {
       <div className="grid gap-2 sm:grid-cols-2">
         {question.options.map((option) => {
           const checked = value?.kind === "choice" ? value.optionId === option.id : value?.kind === "multi" && value.optionIds.includes(option.id);
-          return <label key={option.id} className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-3 py-3 text-sm leading-6 focus-within:ring-2 focus-within:ring-[var(--color-brand-primary)] ${checked ? "border-[var(--color-brand-primary)] bg-[var(--color-brand-primary-soft)]" : "border-slate-200"}`}>
+          return <label key={option.id} className={`group block cursor-pointer ${question.type === "multi" ? "" : ""}`}>
             <input type={question.type === "multi" ? "checkbox" : "radio"} name={question.id} value={option.id} checked={Boolean(checked)} aria-invalid={Boolean(error)} aria-describedby={describedBy}
-              className="h-4 w-4 shrink-0 accent-[var(--color-brand-primary)]"
+              className="peer sr-only"
               onChange={() => {
                 if (question.type !== "multi") { onChange({ kind: "choice", optionId: option.id }); return; }
                 const selected = value?.kind === "multi" ? value.optionIds : [];
@@ -231,7 +227,7 @@ function AssessmentField({ question, value, showErrors, onChange }: {
                   : [...selected.filter((id) => !question.options.find((item) => item.id === id)?.exclusive), option.id];
                 onChange(next.length ? { kind: "multi", optionIds: next } : undefined);
               }} />
-            <span>{option.label}</span>
+            <span className={`atlas-interactive block min-h-12 rounded-[var(--radius-control)] border px-4 py-3 text-sm font-medium leading-6 text-[var(--color-foreground)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--color-focus)] peer-focus-visible:ring-4 peer-focus-visible:ring-[var(--color-focus-ring)] ${checked ? "border-[var(--color-action-primary)] bg-[var(--color-brand-primary-soft)]" : "border-[var(--color-border-strong)] bg-white"}`}>{option.label}</span>
           </label>;
         })}
       </div>

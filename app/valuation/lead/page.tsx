@@ -6,6 +6,8 @@ import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { MockRequestService } from "@/adapters/mock/request";
 import { contactErrors, normalizeSellerContact } from "@/lib/seller-contact";
 import { AppShell } from "@/components/app-shell";
+import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
+import { Button } from "@/components/ui-primitives";
 import { hasCompletedAssessment, hasPreliminaryValuation, hasRequestPrerequisites, hasReachedStage, markRequestSubmitted, type StoredValuationSession } from "@/lib/valuation-session";
 import type { RequestService } from "@/services/request-service";
 
@@ -13,7 +15,6 @@ const requestService: RequestService = new MockRequestService();
 const analyticsService = new MockAnalyticsService();
 const noSessionSubscription = () => () => undefined;
 const inputClass = "mt-2 min-h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[var(--color-brand-primary)] focus:ring-2 focus:ring-[var(--color-brand-primary-glow)] aria-invalid:border-rose-400";
-const focusClass = "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]";
 
 function getStoredSessionRaw() {
   return typeof window === "undefined" ? null : window.sessionStorage.getItem("atlast.valuation.session");
@@ -122,22 +123,15 @@ export default function LeadPage() {
       title="ข้อมูลติดต่อผู้ขาย"
       description="กรอกข้อมูลติดต่อก่อนส่งคำขอประเมินสินค้า แล้วจึงเชื่อมต่อ LINE ในขั้นตอนถัดไป"
       compactHeader
-      backAction={
-        <button type="button" onClick={() => router.push("/valuation/transaction-intent")} disabled={isSubmitting}
-          aria-label="ย้อนกลับ" className={`rounded-full p-1 text-xl text-slate-700 hover:bg-slate-100 disabled:opacity-50 ${focusClass}`}>
-          ←
-        </button>
-      }
+      flowStage="contact"
+      backAction={<span className="hidden" aria-hidden="true" />}
     >
       <div className="mx-auto max-w-[820px]">
         {!hasPrerequisites ? (
           <div className="rounded-3xl bg-white px-5 py-10 text-center">
             <h2 className="text-xl font-semibold text-slate-900">ยังไม่มีข้อมูลครบสำหรับติดต่อกลับ</h2>
             <p className="mt-2 text-sm leading-6 text-slate-600">ทำตามขั้นตอนสินค้า สภาพ ราคา และรูปแบบการทำรายการให้ครบก่อนกรอกข้อมูลติดต่อ</p>
-            <button type="button" onClick={() => router.push(recoveryRoute)}
-              className={`mt-6 rounded-full bg-[var(--color-action-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--color-action-primary-hover)] ${focusClass}`}>
-              {recoveryLabel}
-            </button>
+            <Button className="mt-6" onClick={() => router.push(recoveryRoute)}>{recoveryLabel}</Button>
           </div>
         ) : !mockResult || !storedSession ? (
           <p role="status" className="py-10 text-center text-sm text-slate-500">กำลังเตรียมข้อมูลการประเมิน...</p>
@@ -145,7 +139,7 @@ export default function LeadPage() {
           <>
             <p className="mb-4 text-sm leading-6 text-slate-600">นี่คือต้นแบบการส่งคำขอ ยังไม่ส่งข้อมูลให้เจ้าหน้าที่หรือบันทึกบนเซิร์ฟเวอร์ ข้อมูลติดต่อใช้เฉพาะการทดลองครั้งนี้และไม่เก็บในเบราว์เซอร์หลังส่ง</p>
             <p className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-500">
-              <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-brand-primary-soft)] text-[var(--color-brand-primary-hover)]">✓</span>
+              <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-brand-primary-soft)] text-[var(--color-action-primary)]">✓</span>
               ประเมินเบื้องต้นเรียบร้อยแล้ว
             </p>
             <section aria-label="สรุปการประเมิน" className="mb-6 rounded-xl bg-[var(--color-surface-subtle)] px-3 py-2.5 sm:flex sm:items-center sm:justify-between sm:gap-6">
@@ -195,17 +189,17 @@ export default function LeadPage() {
                     <input ref={consentRef} id="lead-consent" name="consent" type="checkbox" required checked={consent}
                       onChange={(event) => { setConsent(event.target.checked); setTouched((current) => ({ ...current, consent: true })); }}
                       aria-invalid={showConsentError} aria-describedby={showConsentError ? "lead-consent-error" : undefined}
-                      className={`mt-0.5 h-5 w-5 shrink-0 accent-[var(--color-brand-primary)] ${focusClass}`} />
+                      className="peer sr-only" />
+                    <span aria-hidden="true" className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[0.35rem] border border-[var(--color-border-strong)] bg-white text-white peer-checked:border-[var(--color-action-primary)] peer-checked:bg-[var(--color-brand-primary)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--color-focus)] peer-focus-visible:ring-4 peer-focus-visible:ring-[var(--color-focus-ring)]">
+                      <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5"><path d="M3 8.25L6.25 11.25L13 4.75" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                    </span>
                     <span>ยินยอมให้ Atlas ติดต่อกลับเกี่ยวกับการประเมินสินค้านี้</span>
                   </label>
                   {showConsentError ? <p id="lead-consent-error" aria-live="polite" className="mt-1 text-sm text-rose-700">{consentError}</p> : null}
                 </div>
               </fieldset>
               {submitError ? <p role="alert" className="mt-4 text-sm text-rose-700">{submitError}</p> : null}
-              <button type="submit" disabled={isSubmitting}
-                className={`mt-5 flex min-h-14 w-full items-center justify-center rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-action-primary-hover)] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none ${focusClass}`}>
-                {isSubmitting ? "กำลังส่งคำขอ..." : "ส่งคำขอประเมินสินค้า →"}
-              </button>
+              <div className="mt-5"><FlowActions back={<FlowBack onClick={() => router.push("/valuation/transaction-intent")} disabled={isSubmitting} />} forward={<FlowForward type="submit" disabled={isSubmitting}>{isSubmitting ? "กำลังส่งคำขอ..." : "ส่งคำขอประเมินสินค้า"}</FlowForward>} /></div>
             </form>
           </>
         )}

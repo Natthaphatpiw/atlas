@@ -2,39 +2,39 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowLeft02Icon, ArrowRight02Icon } from "@hugeicons/core-free-icons";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { MockValuationService } from "@/adapters/mock/valuation";
 import { AppShell } from "@/components/app-shell";
 import type { CatalogDevice } from "@/domain/device-catalog";
 import type { Device, DeviceCategory } from "@/domain/types";
 import { devicePhotoErrorMessage, MAX_DEVICE_PHOTOS, removeDevicePhoto, selectDevicePhotos, type DevicePhotoSelectionError } from "@/lib/device-photos";
+import { selectableDeviceSpecs, selectedDeviceSnapshot } from "@/lib/device-selection";
 import { continueWithDevice, readValuationSession, type StoredValuationSession } from "@/lib/valuation-session";
 
 type SelectionStage = "category" | "brand" | "model" | "specs" | "complete";
 type SpecKey = keyof Device["specs"];
 type SelectedDevicePhoto = { id: string; file: File; previewUrl: string };
 
-const categoryMeta: Record<DeviceCategory, { label: string; icon: string; description: string }> = {
-  phone: { label: "โทรศัพท์มือถือ", icon: "📱", description: "มือถือและสมาร์ทโฟน" },
-  tablet: { label: "แท็บเล็ต", icon: "📲", description: "แท็บเล็ตและไอแพด" },
-  laptop: { label: "แล็ปท็อป", icon: "💻", description: "โน้ตบุ๊กและคอมพิวเตอร์" },
-  watch: { label: "สมาร์ทวอทช์", icon: "⌚", description: "นาฬิกาอัจฉริยะ" },
-  audio: { label: "อุปกรณ์เสียง", icon: "🎧", description: "หูฟังและลำโพง" },
-  other: { label: "อื่น ๆ", icon: "🧩", description: "อุปกรณ์ประเภทอื่น" },
+const categoryMeta: Record<DeviceCategory, { label: string; description: string }> = {
+  phone: { label: "โทรศัพท์มือถือ", description: "มือถือและสมาร์ทโฟน" },
+  tablet: { label: "แท็บเล็ต", description: "แท็บเล็ตและไอแพด" },
+  laptop: { label: "แล็ปท็อป", description: "โน้ตบุ๊กและคอมพิวเตอร์" },
+  watch: { label: "สมาร์ทวอทช์", description: "นาฬิกาอัจฉริยะ" },
+  audio: { label: "อุปกรณ์เสียง", description: "หูฟังและลำโพง" },
+  other: { label: "อื่น ๆ", description: "อุปกรณ์ประเภทอื่น" },
 };
 
 const specLabels: Record<string, string> = {
   storage: "ความจุ",
   color: "สี",
-  network: "เครือข่าย",
   ram: "หน่วยความจำ",
   displaySize: "ขนาดหน้าจอ",
 };
 
 const analyticsService = new MockAnalyticsService();
 const valuationService = new MockValuationService();
-
-const progressSteps = ["สินค้า", "สภาพ", "ราคา", "ข้อมูลติดต่อ"];
 
 const noSessionSubscription = () => () => undefined;
 const getStoredSessionRaw = () => window.sessionStorage.getItem("atlast.valuation.session");
@@ -72,14 +72,14 @@ export default function DevicePage() {
   if (!hydrated) return null;
   if (!catalog && !catalogError) {
     return (
-      <AppShell title="กำลังโหลดรายการสินค้า" description="ข้อมูลตัวอย่างสำหรับทดสอบ" compactHeader>
+      <AppShell title="กำลังโหลดรายการสินค้า" description="ข้อมูลตัวอย่างสำหรับทดสอบ" compactHeader flowStage="device">
         <p className="text-sm text-slate-500" role="status">กำลังโหลด…</p>
       </AppShell>
     );
   }
   if (catalogError || !catalog) {
     return (
-      <AppShell title="ไม่สามารถโหลดรายการสินค้าได้" description="โปรดลองเปิดหน้านี้อีกครั้ง" compactHeader>
+      <AppShell title="ไม่สามารถโหลดรายการสินค้าได้" description="โปรดลองเปิดหน้านี้อีกครั้ง" compactHeader flowStage="device">
         <div />
       </AppShell>
     );
@@ -135,9 +135,8 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
     [catalog, selectedModel],
   );
 
-  const selectedSpecs = selectedDevice
-    ? (Object.entries(selectedDevice.specs).filter(([, value]) => value) as [SpecKey, string][])
-    : [];
+  // Connectivity remains a catalog/default snapshot value, but is never a seller selection.
+  const selectedSpecs = selectedDevice ? selectableDeviceSpecs(selectedDevice) as [SpecKey, string][] : [];
 
   const isSpecsComplete =
     selectedSpecs.length > 0 && selectedSpecs.every(([key, value]) =>
@@ -259,9 +258,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
     void sortOrder;
     void sources;
     void specOptions;
-    const stored = continueWithDevice({ ...deviceSnapshot, specs: Object.fromEntries(
-      selectedSpecs.map(([key]) => [key, specSelections[key]]),
-    ) });
+    const stored = continueWithDevice(selectedDeviceSnapshot(deviceSnapshot, Object.fromEntries(selectedSpecs.map(([key]) => [key, specSelections[key]]))));
     const context = {
       sessionId: stored.session.id,
       route: "/valuation/device",
@@ -282,40 +279,21 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
       title="เลือกสินค้าที่ต้องการประเมินราคา"
       description="เลือกประเภทสินค้าเพื่อเริ่มต้น"
       compactHeader
+      flowStage="device"
       backAction={
         <button
           type="button"
           onClick={handleBack}
           aria-label="ย้อนกลับ"
-          className="rounded-full p-1 text-xl text-slate-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
+          className="atlas-focus atlas-interactive inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] border border-[var(--color-border-strong)] bg-white text-[var(--color-foreground)]"
         >
-          ←
+          <HugeiconsIcon icon={ArrowLeft02Icon} size={20} strokeWidth={1.8} aria-hidden="true" />
         </button>
       }
     >
-      <div className="mx-auto max-w-[820px]">
-        <div className="mb-8 flex items-center gap-2" aria-label="ความคืบหน้าการประเมินราคา">
-          {progressSteps.map((step, index) => (
-            <div key={step} className="flex min-w-0 flex-1 items-center gap-2">
-              <div
-                className={[
-                  "h-1.5 flex-1 rounded-full",
-                  index === 0 ? "bg-[var(--color-brand-primary)]" : "bg-slate-200",
-                ].join(" ")}
-              />
-              <span
-                className={[
-                  "hidden whitespace-nowrap text-xs sm:block",
-                  index === 0 ? "font-semibold text-slate-900" : "text-slate-400",
-                ].join(" ")}
-              >
-                {step}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <section className="space-y-3">
+      <div className="mx-auto max-w-[var(--layout-financial)]">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_18.5rem] lg:items-start">
+        <section className="min-w-0 space-y-5">
           {selectedCategory && !stageIsOpen("category") ? (
             <SelectionRow
               label="ประเภทสินค้า"
@@ -325,7 +303,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
           ) : null}
 
           {stageIsOpen("category") ? (
-            <div className="border-b border-slate-200 pb-8">
+            <div className="border-b border-[var(--color-border-soft)] pb-8">
               <StageHeading eyebrow="เริ่มต้น" title="เลือกประเภทสินค้า" />
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {(Object.entries(categoryMeta) as [DeviceCategory, (typeof categoryMeta)[DeviceCategory]][]).map(
@@ -338,27 +316,18 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
                         onClick={() => handleCategoryChange(category)}
                         aria-pressed={isSelected}
                         className={[
-                          "group rounded-3xl border p-4 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
+                          "atlas-focus atlas-interactive min-h-28 rounded-[var(--radius-surface)] border p-4 text-left",
                           isSelected
                             ? "border-[var(--color-brand-primary)] bg-[var(--color-brand-primary-soft)]"
                             : "border-slate-200 bg-white hover:border-[var(--color-brand-primary)] hover:bg-[var(--color-surface-subtle)]",
                         ].join(" ")}
                       >
-                        <span className="flex items-center justify-between gap-3">
-                          <span className="flex items-center gap-3">
-                            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-50 text-xl" aria-hidden="true">
-                              {meta.icon}
-                            </span>
-                            <span>
-                              <span className="block font-semibold text-slate-900">{meta.label}</span>
-                              <span className="mt-0.5 block text-xs text-slate-500">{meta.description}</span>
-                            </span>
+                        <span className="flex h-full flex-col justify-between gap-5">
+                          <span>
+                            <span className="block text-xs font-semibold text-[var(--color-action-primary)]">ประเภทอุปกรณ์</span>
+                            <span className="mt-2 block font-semibold text-[var(--color-foreground)]">{meta.label}</span>
+                            <span className="mt-1 block text-xs text-[var(--color-muted-foreground)]">{meta.description}</span>
                           </span>
-                          {isSelected ? (
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-brand-primary)] text-sm text-white" aria-label="เลือกแล้ว">
-                              ✓
-                            </span>
-                          ) : null}
                         </span>
                       </button>
                     );
@@ -373,9 +342,9 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
           ) : null}
 
           {stageIsOpen("brand") ? (
-            <div className="border-b border-slate-200 pb-8">
+            <div className="border-b border-[var(--color-border-soft)] pb-8">
               <StageHeading eyebrow="ขั้นตอนถัดไป" title="เลือกยี่ห้อ" />
-              <div className="flex flex-wrap gap-2">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {brands.length > 0 ? (
                   brands.map((brand) => (
                     <button
@@ -384,7 +353,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
                       onClick={() => handleBrandChange(brand)}
                       aria-pressed={selectedBrand === brand}
                       className={[
-                        "rounded-full border px-5 py-2.5 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
+                          "atlas-focus atlas-interactive min-h-16 rounded-[var(--radius-surface)] border px-4 py-3 text-center text-sm font-semibold",
                         selectedBrand === brand
                           ? "border-[var(--color-brand-primary)] bg-[var(--color-brand-primary-soft)] text-slate-900"
                           : "border-slate-200 bg-white text-slate-700 hover:border-[var(--color-brand-primary)]",
@@ -409,35 +378,36 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
           ) : null}
 
           {stageIsOpen("model") ? (
-            <div className="border-b border-slate-200 pb-8">
+            <div className="border-b border-[var(--color-border-soft)] pb-8">
               <StageHeading eyebrow="ขั้นตอนถัดไป" title="เลือกรุ่น" />
-              <label className="block">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+              <label className="block min-w-0 flex-1">
                 <span className="sr-only">ค้นหารุ่น</span>
                 <input
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="ค้นหาชื่อรุ่น"
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900 shadow-[0_8px_24px_rgba(10,26,22,0.04)] outline-none transition focus:border-[var(--color-brand-primary)] focus:ring-2 focus:ring-[var(--color-brand-primary-glow)]"
+                  className="atlas-focus w-full rounded-[var(--radius-control)] border border-[var(--color-border-strong)] bg-white px-4 py-3 text-base text-[var(--color-foreground)] shadow-[var(--shadow-tactile-sm)] outline-none"
                 />
               </label>
-
-              <p className="mt-3 text-xs text-slate-500" role="status">
+              <p className="text-xs font-medium text-[var(--color-muted-foreground)]" role="status">
                 {displayedModels.length} รุ่น · ข้อมูลตัวอย่างสำหรับทดสอบ
               </p>
+              </div>
               {displayedModels.length === 0 ? (
-                <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-8 text-center">
+                <div className="mt-4 rounded-[var(--radius-surface)] bg-[var(--color-surface-subtle)] px-4 py-8 text-center">
                   <p className="font-medium text-slate-700">ไม่พบรุ่นที่ตรงกับคำค้นหา</p>
                   <p className="mt-1 text-sm text-slate-500">ลองเปลี่ยนคำค้นหา หรือเลือกยี่ห้ออื่น</p>
                   <button
                     type="button"
                     onClick={() => setSearchQuery("")}
-                    className="mt-4 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                    className="atlas-focus atlas-interactive mt-4 rounded-[var(--radius-control)] border border-[var(--color-border-strong)] bg-white px-4 py-2 text-sm font-medium text-[var(--color-foreground)]"
                   >
                     ล้างการค้นหา
                   </button>
                 </div>
               ) : (
-                <div className="mt-4 max-h-[min(28rem,55dvh)] space-y-2 overflow-y-auto overscroll-contain p-1" role="region" aria-label="รุ่นที่ตรงกับคำค้นหา" tabIndex={0}>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2" role="region" aria-label="รุ่นที่ตรงกับคำค้นหา">
                   {displayedModels.map((device) => (
                     <button
                       key={device.id}
@@ -445,7 +415,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
                       onClick={() => handleModelChange(device.id)}
                       aria-pressed={selectedModel === device.id}
                       className={[
-                        "flex w-full items-center justify-between rounded-2xl border px-4 py-3.5 text-left transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
+                        "atlas-focus atlas-interactive flex min-h-20 w-full items-center justify-between rounded-[var(--radius-surface)] border px-4 py-3 text-left",
                         selectedModel === device.id
                           ? "border-[var(--color-brand-primary)] bg-[var(--color-brand-primary-soft)]"
                           : "border-slate-200 bg-white hover:border-[var(--color-brand-primary)]",
@@ -458,11 +428,6 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
                           {device.variant ? ` · ${device.variant}` : ""}
                         </span>
                       </span>
-                      {selectedModel === device.id ? (
-                        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[var(--color-brand-primary)] text-sm text-white" aria-label="เลือกแล้ว">
-                          ✓
-                        </span>
-                      ) : null}
                     </button>
                   ))}
                 </div>
@@ -479,11 +444,11 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
           ) : null}
 
           {stageIsOpen("specs") && selectedDevice ? (
-            <div className="border-b border-slate-200 pb-8">
+            <div className="border-b border-[var(--color-border-soft)] pb-8">
               <StageHeading eyebrow="ขั้นตอนสุดท้าย" title="เลือกข้อมูลจำเป็น" />
               <div className="grid gap-3 sm:grid-cols-2">
                 {selectedSpecs.map(([key, value]) => (
-                  <div key={key} className="rounded-2xl bg-slate-50 p-4">
+                  <div key={key} className="rounded-[var(--radius-surface)] border border-[var(--color-border-soft)] bg-[var(--color-surface-subtle)] p-4">
                     <p className="text-sm font-medium text-slate-700">{specLabels[key] ?? key}</p>
                     {(selectedDevice.specOptions?.[key] ?? [{ id: `fixed-${key}`, value, label: value }]).map((option) => (
                       <button
@@ -492,9 +457,9 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
                         onClick={() => handleSpecChange(key, option.value)}
                         aria-pressed={specSelections[key] === option.value}
                         className={[
-                          "mt-3 w-full rounded-full border px-3 py-2 text-left text-sm transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]",
+                          "atlas-focus atlas-interactive mt-3 w-full rounded-[var(--radius-control)] border px-3 py-2 text-left text-sm",
                           specSelections[key] === option.value
-                            ? "border-[var(--color-brand-primary)] bg-white text-slate-900"
+                            ? "border-[var(--color-action-primary)] bg-[var(--color-brand-primary-soft)] font-semibold text-slate-900"
                             : "border-slate-200 bg-white text-slate-600 hover:border-[var(--color-brand-primary)]",
                         ].join(" ")}
                       >
@@ -508,12 +473,12 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
           ) : null}
 
           {selectedDevice && isSpecsComplete ? (
-            <div className="border-b border-slate-200 py-8">
+            <div className="border-b border-[var(--color-border-soft)] py-8">
               <StageHeading eyebrow="เพิ่มเติม" title="เพิ่มรูปอุปกรณ์ (ไม่บังคับ)" />
               <p id="device-photo-help" className="max-w-2xl text-sm leading-6 text-slate-600">
                 รูปช่วยให้บอกบริบทของอุปกรณ์ได้ รูปจะอยู่ในเบราว์เซอร์นี้ชั่วคราวและยังไม่ได้อัปโหลดหรือใช้ในการประเมินราคา
               </p>
-              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4">
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-surface)] border border-dashed border-[var(--color-border-strong)] bg-[var(--color-surface-subtle)] p-4">
                 <p className="text-sm font-medium text-slate-700" aria-live="polite">
                   {selectedPhotos.length} / {MAX_DEVICE_PHOTOS} รูป
                 </p>
@@ -522,7 +487,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
                   onClick={() => photoInputRef.current?.click()}
                   disabled={selectedPhotos.length >= MAX_DEVICE_PHOTOS}
                   aria-describedby={photoErrors.length > 0 ? "device-photo-error" : "device-photo-help"}
-                  className="rounded-full border border-[var(--color-brand-primary)] bg-white px-4 py-2 text-sm font-semibold text-[var(--color-brand-primary-hover)] transition-colors hover:bg-[var(--color-brand-primary-soft)] disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
+                  className="atlas-focus atlas-interactive rounded-[var(--radius-control)] border border-[var(--color-action-primary)] bg-white px-4 py-2 text-sm font-semibold text-[var(--color-action-primary)] disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
                 >
                   เพิ่มรูป
                 </button>
@@ -548,13 +513,13 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
               {selectedPhotos.length > 0 ? (
                 <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3" aria-label="รูปอุปกรณ์ที่เลือก">
                   {selectedPhotos.map((photo, index) => (
-                    <li key={photo.id} className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-2 shadow-[0_8px_24px_rgba(10,26,22,0.04)]">
+                    <li key={photo.id} className="min-w-0 overflow-hidden rounded-[var(--radius-surface)] border border-[var(--color-border-soft)] bg-white p-2 shadow-[var(--shadow-tactile-sm)]">
                       {/* Object URLs are browser-memory previews and cannot use Next image optimization. */}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={photo.previewUrl}
                         alt={`ตัวอย่างรูปอุปกรณ์ ${index + 1}: ${photo.file.name}`}
-                        className="aspect-square w-full rounded-xl bg-slate-100 object-cover"
+                        className="aspect-square w-full rounded-[var(--radius-control)] bg-slate-100 object-cover"
                       />
                       <div className="mt-2 flex items-center justify-between gap-2">
                         <p className="min-w-0 truncate text-xs text-slate-600" title={photo.file.name}>{photo.file.name}</p>
@@ -575,14 +540,31 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
           ) : null}
         </section>
 
+        <aside className="hidden rounded-[var(--radius-feature)] border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] p-5 shadow-[var(--shadow-tactile-sm)] lg:block lg:sticky lg:top-6" aria-label="สรุปการเลือกสินค้า">
+          <p className="text-xs font-semibold text-[var(--color-action-primary)]">การประเมินของคุณ</p>
+          {selectedDevice ? (
+            <div className="mt-4">
+              <p className="text-lg font-semibold text-[var(--color-foreground)]">{selectedDevice.model}</p>
+              <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{selectedBrand} · {categoryMeta[selectedDevice.category].label}</p>
+              <div className="mt-5 border-t border-[var(--color-border-soft)] pt-4 text-sm text-[var(--color-muted-foreground)]">
+                <p>{isSpecsComplete ? formatSpecs(selectedSpecs, specSelections) : "เลือกข้อมูลจำเป็นต่อ"}</p>
+              </div>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm leading-6 text-[var(--color-muted-foreground)]">เลือกประเภท ยี่ห้อ และรุ่น เพื่อเริ่มประเมินราคา</p>
+          )}
+          <p className="mt-6 text-xs leading-5 text-[var(--color-muted-foreground)]">ข้อมูลอุปกรณ์เป็นข้อมูลตัวอย่างสำหรับการพัฒนา</p>
+        </aside>
+        </div>
+
         {isComplete ? (
           <div className="mt-6 pt-2">
             <button
               type="button"
               onClick={handleContinue}
-              className="flex w-full items-center justify-center rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-action-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
+              className="atlas-focus atlas-interactive flex w-full items-center justify-center gap-2 rounded-[var(--radius-control)] bg-[var(--color-action-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[var(--shadow-tactile-md)]"
             >
-              ดำเนินการต่อ →
+              ดำเนินการต่อ <HugeiconsIcon icon={ArrowRight02Icon} size={19} strokeWidth={1.8} aria-hidden="true" />
             </button>
           </div>
         ) : null}
@@ -593,20 +575,17 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
 
 function SelectionRow({ label, value, onEdit }: { label: string; value: string; onEdit: () => void }) {
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-slate-200 py-3">
+    <div className="flex items-center justify-between gap-3 rounded-[var(--radius-surface)] border border-[var(--color-border-soft)] bg-[var(--color-surface-subtle)] px-4 py-3">
       <div className="flex min-w-0 items-center gap-3">
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-primary-soft)] text-sm font-semibold text-[var(--color-brand-primary-hover)]">
-          ✓
-        </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-slate-500">{label}</p>
-          <p className="truncate font-semibold text-slate-900">{value}</p>
+          <p className="truncate text-sm font-medium text-[var(--color-muted-foreground)]">{label}</p>
+          <p className="truncate font-semibold text-[var(--color-foreground)]">{value}</p>
         </div>
       </div>
       <button
         type="button"
         onClick={onEdit}
-        className="shrink-0 rounded-full px-3 py-1.5 text-sm font-medium text-[var(--color-brand-primary-hover)] hover:bg-[var(--color-brand-primary-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
+        className="atlas-focus atlas-interactive shrink-0 rounded-[var(--radius-control)] px-3 py-1.5 text-sm font-medium text-[var(--color-action-primary)] border border-[var(--color-action-primary)] hover:bg-[var(--color-action-primary-soft)]"
       >
         แก้ไข
       </button>
@@ -617,8 +596,8 @@ function SelectionRow({ label, value, onEdit }: { label: string; value: string; 
 function StageHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
     <div className="mb-5">
-      <p className="text-sm font-medium text-[var(--color-brand-primary-hover)]">{eyebrow}</p>
-      <h2 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">{title}</h2>
+      <p className="text-sm font-medium text-[var(--color-action-primary)]">{eyebrow}</p>
+      <h2 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--color-foreground)]">{title}</h2>
     </div>
   );
 }

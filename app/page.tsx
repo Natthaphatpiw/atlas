@@ -2,85 +2,58 @@
 
 import Link from "next/link";
 import { useEffect, useRef } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { ArrowRight02Icon } from "@hugeicons/core-free-icons";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { HowItWorksModal } from "@/components/how-it-works-modal";
+import { PageContainer } from "@/components/page-container";
 
 const analyticsService = new MockAnalyticsService();
-
-const benefitPills = ["เลือกรุ่น", "ระบุสภาพ", "ดูราคาเบื้องต้น"];
-
 export default function Home() {
   const viewTracked = useRef(false);
   useEffect(() => {
     if (viewTracked.current) return;
     viewTracked.current = true;
-    analyticsService.track({
-      eventName: "landing_viewed",
-      route: "/",
-      timestamp: new Date().toISOString(),
-    });
+    analyticsService.track({ eventName: "landing_viewed", route: "/", timestamp: new Date().toISOString() });
   }, []);
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[var(--color-background)] text-[var(--color-foreground)]">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-24 top-10 h-72 w-72 rounded-full bg-[radial-gradient(circle,_var(--color-brand-primary-glow)_0%,_transparent_70%)] blur-3xl sm:-left-20 sm:h-80 sm:w-80" />
-        <div className="absolute right-[-5rem] top-24 h-72 w-72 rounded-full bg-[radial-gradient(circle,_var(--color-brand-primary-glow)_0%,_transparent_72%)] blur-3xl sm:right-[-4rem] sm:h-80 sm:w-80" />
-        <div className="absolute left-1/2 top-20 h-[32rem] w-[32rem] -translate-x-1/2 rounded-full border border-[var(--color-border-soft)] bg-[radial-gradient(circle,_rgba(7,192,97,0.08),_transparent_62%)] blur-2xl" />
-        <div className="absolute inset-x-0 top-40 h-px bg-gradient-to-r from-transparent via-[var(--color-border-soft)] to-transparent" />
-      </div>
-
-      <header className="relative z-10 mx-auto flex max-w-5xl items-center justify-between px-4 pb-0 pt-4 sm:px-6 lg:px-8 lg:pt-6">
-        <Link href="/" aria-label="Atlas home" className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-brand-primary)] text-sm font-bold text-white shadow-[0_12px_24px_var(--color-brand-primary-glow)]">
-            A
-          </span>
-          <span className="text-xl font-bold tracking-[-0.06em] text-[var(--color-foreground)]">Atlas</span>
-        </Link>
-
-        <nav className="flex items-center text-sm font-medium text-[var(--color-muted-foreground)]">
-          <HowItWorksModal />
-        </nav>
+    <div className="min-h-dvh overflow-x-hidden bg-[var(--color-canvas)] text-[var(--color-foreground)]">
+      <header className="border-b border-[var(--color-border-soft)] bg-[var(--color-canvas)]">
+        <PageContainer size="shell" className="flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <Link href="/" aria-label="Atlas home" className="inline-flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-[var(--color-brand-primary)]" />
+            Atlas
+          </Link>
+          <HowItWorksModal triggerLabel="วิธีการใช้งาน" triggerClassName="atlas-focus atlas-interactive inline-flex min-h-10 items-center justify-center rounded-[var(--radius-control)] border border-[var(--color-action-primary)] bg-[var(--color-action-primary)] px-4 py-2 text-sm font-semibold text-white" />
+        </PageContainer>
       </header>
 
-      <main className="relative z-10 mx-auto flex max-w-4xl flex-col items-center px-4 pb-16 pt-10 text-center sm:px-6 lg:pb-24 lg:pt-20">
-        <span className="inline-flex items-center gap-2 rounded-full border border-[var(--color-border-soft)] bg-[var(--color-surface)]/80 px-3 py-1.5 text-[11px] font-semibold tracking-[0.18em] text-[var(--color-muted-foreground)] uppercase backdrop-blur-sm">
-          Atlas
-        </span>
-
-        <h1 className="mt-6 max-w-3xl text-[clamp(2.6rem,8vw,6rem)] font-bold leading-[0.92] tracking-[-0.09em] text-[var(--color-foreground)]">
-          <span className="block">ประเมินราคาสินค้า</span>
-          <span className="block text-[var(--color-brand-primary)]">ได้ง่ายกว่าที่เคย</span>
-        </h1>
-
-        <p className="mt-6 max-w-xl text-base leading-7 text-[var(--color-muted-foreground)] sm:text-lg">
-          Atlas ช่วยให้คุณเห็นช่วงราคาประเมินเบื้องต้นจากรุ่นและสภาพอุปกรณ์ก่อนตัดสินใจขายหรือแลกเปลี่ยน
-        </p>
-
-        <div className="mt-8 flex justify-center">
-          <Link
-            href="/valuation/device"
-            className="group inline-flex min-h-[60px] items-center justify-center gap-2 rounded-full bg-[var(--color-action-primary)] px-7 py-4 text-base font-semibold text-white shadow-[0_18px_40px_var(--color-brand-primary-glow)] transition-all duration-200 hover:bg-[var(--color-action-primary-hover)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--color-brand-primary-soft)]"
-          >
-            <span>เริ่มประเมินราคา</span>
-            <span className="text-xl transition-transform duration-200 group-hover:translate-x-0.5">→</span>
-          </Link>
-        </div>
-
-        <div className="mt-5 text-xs tracking-[0.02em] text-[var(--color-muted-foreground)]">
-          เริ่มจากรุ่นและสภาพสินค้า
-        </div>
-
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
-          {benefitPills.map((text) => (
-            <div
-              key={text}
-              className="rounded-full border border-[var(--color-border-soft)] bg-white/80 px-3.5 py-2 text-[11px] font-medium tracking-[0.02em] text-[var(--color-foreground)] backdrop-blur-sm"
-            >
-              {text}
+      <main>
+        <PageContainer size="shell" className="relative flex min-h-[calc(100dvh-73px)] items-center justify-center overflow-hidden px-4 py-16 sm:px-6 sm:py-20 lg:px-8">
+          <div aria-hidden="true" className="pointer-events-none absolute left-1/2 top-1/2 h-[32rem] w-[32rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,_var(--color-brand-primary-soft)_0%,_transparent_68%)] opacity-70" />
+          <section className="relative max-w-3xl text-center">
+            <div>
+              <p className="text-sm font-semibold text-[var(--color-action-primary)]">Atlas · ประเมินเบื้องต้น</p>
+              <h1 className="mt-4 text-4xl font-semibold leading-[1.18] tracking-tight text-[var(--color-foreground)] sm:text-5xl lg:text-6xl">
+                ประเมินราคามือถือ<br />
+                <span className="text-[var(--color-action-primary)]">และอุปกรณ์ IT ได้ง่าย</span><br />
+                ในไม่กี่ขั้นตอน
+              </h1>
+              <p className="mx-auto mt-5 max-w-xl text-base leading-7 text-[var(--color-muted-foreground)] sm:text-lg">
+                Atlas ให้ช่วงราคาประเมินเบื้องต้นจากรุ่นอุปกรณ์และสภาพที่คุณระบุ เพื่อช่วยให้ตัดสินใจก่อนดำเนินการต่อ
+              </p>
+              <div className="mt-8 flex justify-center">
+                <Link href="/valuation/device" className="atlas-focus atlas-interactive inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--color-action-primary)] bg-[var(--color-action-primary)] px-5 py-3 text-base font-semibold text-white">
+                  เริ่มประเมินราคา <HugeiconsIcon icon={ArrowRight02Icon} size={19} strokeWidth={1.8} aria-hidden="true" />
+                </Link>
+              </div>
+              <div className="mt-8 text-sm text-[var(--color-muted-foreground)]">
+                <span>ข้อมูลของคุณใช้เพื่อประเมินเบื้องต้นในเบราว์เซอร์นี้</span>
+              </div>
             </div>
-          ))}
-        </div>
+          </section>
+        </PageContainer>
       </main>
     </div>
   );

@@ -81,6 +81,28 @@ export function assessmentComplete(definition: AssessmentDefinition, device: Dev
   return questions.length > 0 && questions.every((question) => !answerError(question, supplied.get(question.id)?.value));
 }
 
+export function assessmentProgress(definition: AssessmentDefinition, device: Device, answers: AssessmentAnswer[], groupId: string | null) {
+  const questions = applicableQuestions(definition, device, answers);
+  const groupIds = [...new Set(questions.map((question) => question.groupId))];
+  const currentGroupId = groupId && groupIds.includes(groupId) ? groupId : groupIds[0] ?? null;
+  const currentGroup = questions.find((question) => question.groupId === currentGroupId);
+  const sectionIndex = definition.sections.findIndex((section) => section.id === currentGroup?.sectionId);
+  const answered = questions.filter((question) => {
+    const answer = answers.find((item) => item.questionId === question.id);
+    return Boolean(answer && !answerError(question, answer.value));
+  }).length;
+  return {
+    questions,
+    groupIds,
+    currentGroupId,
+    sectionIndex,
+    groupIndex: currentGroupId ? groupIds.indexOf(currentGroupId) : 0,
+    answered,
+    total: questions.length,
+    percentage: questions.length ? (answered / questions.length) * 100 : 0,
+  };
+}
+
 export function answerLabel(question: AssessmentQuestion, value: AssessmentValue) {
   if (value.kind === "unknown") return "ไม่ทราบ";
   if (value.kind === "skipped") return "ข้ามคำถามนี้";

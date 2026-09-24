@@ -3,6 +3,7 @@
 import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { Button } from "@/components/ui-primitives";
 import { hasSubmittedRequest, type StoredValuationSession } from "@/lib/valuation-session";
 
 const noSubscription = () => () => undefined;
@@ -25,14 +26,15 @@ export default function ValuationLayout({ children }: { children: ReactNode }) {
   } catch { /* Route recovery handles invalid JSON. */ }
   const locked = hasReceipt && pathname !== "/valuation/handoff";
   useEffect(() => { if (locked) heading.current?.focus(); }, [locked, pathname]);
+
   if (!hydrated) return null;
-  if (locked) return <AppShell title={submitted ? "คำขอนี้ส่งแล้ว" : "อ่านคำขอเดิมไม่ได้"} compactHeader>
-    <section className="mx-auto max-w-[640px] rounded-2xl bg-white p-5">
-      <h2 ref={heading} tabIndex={-1} className="text-xl font-semibold">{submitted ? "กลับไปดูคำขอและเชื่อมต่อ LINE" : "ไปดูสถานะคำขอ"}</h2>
-      <p className="mt-3 text-sm leading-7 text-slate-600">{submitted
-        ? "ต้นแบบนี้ยังแก้ไขคำขอที่ส่งแล้วไม่ได้ เพื่อให้ข้อมูลสินค้า สภาพ และราคาตรงกับคำขอเดิม คุณไม่ต้องกรอกหรือส่งคำขอซ้ำ"
+  if (locked) return <AppShell title={submitted ? "คำขอนี้ส่งแล้ว" : "อ่านคำขอเดิมไม่ได้"} compactHeader backAction={<span className="hidden" aria-hidden="true" />}>
+    <section className="mx-auto max-w-[42rem] rounded-[var(--radius-feature)] border border-[var(--color-border-strong)] bg-white p-6 shadow-[var(--shadow-surface)] sm:p-8">
+      <h2 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-[-0.05em] text-[var(--color-foreground)]">{submitted ? "ดูคำขอที่ส่งแล้ว" : "ไปดูสถานะคำขอ"}</h2>
+      <p className="mt-3 text-sm leading-7 text-[var(--color-muted-foreground)]">{submitted
+        ? "ข้อมูลของคำขอที่ส่งแล้วจะถูกล็อกไว้ เพื่อให้รายละเอียดอุปกรณ์ สภาพ และราคาตรงกับคำขอเดิม"
         : "ต้นแบบนี้อ่านคำขอที่เก็บไว้ไม่ได้ จึงไม่สามารถแก้ไขหรือส่งทับคำขอเดิมได้ กรุณาเริ่มการทดลองในเซสชันเบราว์เซอร์ใหม่"}</p>
-      <button onClick={() => router.push("/valuation/handoff")} className="mt-5 w-full rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2">{submitted ? "ดูคำขอที่ส่งแล้ว →" : "ดูสถานะคำขอ →"}</button>
+      <Button className="mt-6 w-full sm:w-auto" onClick={() => router.push("/valuation/handoff")}>{submitted ? "ดูคำขอที่ส่งแล้ว" : "ดูสถานะคำขอ"}</Button>
     </section>
   </AppShell>;
   return children;

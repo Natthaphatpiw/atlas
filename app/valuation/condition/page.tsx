@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { MockValuationService } from "@/adapters/mock/valuation";
 import { AppShell } from "@/components/app-shell";
 import { DeviceAssessment } from "@/components/device-assessment";
+import { Button } from "@/components/ui-primitives";
 import type { AssessmentDefinition } from "@/domain/assessment";
 import type { StoredValuationSession } from "@/lib/valuation-session";
 
@@ -34,11 +35,11 @@ export default function ConditionPage() {
 
   if (stored && definition) return <DeviceAssessment key={`${stored.session.id}-${definition.id}`} initial={stored} definition={definition} />;
   return (
-    <AppShell title="ประเมินสภาพด้วยตนเอง" description="ข้อมูลจากผู้ขายสำหรับราคาประเมินเบื้องต้น" compactHeader>
+    <AppShell title="ประเมินสภาพด้วยตนเอง" description="ข้อมูลจากผู้ขายสำหรับราคาประเมินเบื้องต้น" compactHeader flowStage="condition">
       {stored && !failed ? <p role="status">กำลังเตรียมแบบประเมิน...</p> : (
         <div className="rounded-3xl bg-white p-6">
           <p role="status">{failed ? "ยังเตรียมแบบประเมินไม่ได้ กรุณาลองอีกครั้ง" : "กรุณาเลือกสินค้าก่อนเริ่มประเมินสภาพ"}</p>
-          <button type="button" onClick={() => router.push("/valuation/device")} className="mt-5 rounded-full bg-[var(--color-action-primary)] px-5 py-3 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2">เลือกสินค้า</button>
+          <Button className="mt-5" onClick={() => router.push("/valuation/device")}>เลือกสินค้า</Button>
         </div>
       )}
     </AppShell>

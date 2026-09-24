@@ -27,6 +27,7 @@ const { catalogBrands, compareCatalogDevices, deviceCatalog, phoneCatalog } = re
 const { getMockAssessment } = require("../adapters/mock/assessment.ts");
 const { MockValuationService } = require("../adapters/mock/valuation.ts");
 const session = require("../lib/valuation-session.ts");
+const selection = require("../lib/device-selection.ts");
 
 test.after(() => {
   Module._resolveFilename = originalResolve;
@@ -86,6 +87,14 @@ test("existing catalog identities and defaults remain compatible", () => {
     { category: "phone", brand: "Samsung", model: "Galaxy S24 Ultra", specs: { storage: "512GB", color: "Titanium Gray", network: "5G" } },
   );
   assert.equal(samsung.variant, "512GB");
+});
+
+test("connectivity stays in the persisted snapshot without becoming a selectable spec", () => {
+  const iphone = deviceCatalog.find((device) => device.id === "device-iphone-15-pro");
+  assert.deepEqual(selection.selectableDeviceSpecs(iphone).map(([key]) => key), ["storage", "color"]);
+  const snapshot = selection.selectedDeviceSnapshot(iphone, { storage: "512GB", color: "Black Titanium" });
+  assert.equal(snapshot.specs.network, "5G");
+  assert.equal(snapshot.specs.storage, "512GB");
 });
 
 test("assessment coverage and service catalog boundary match the expanded catalog", async () => {

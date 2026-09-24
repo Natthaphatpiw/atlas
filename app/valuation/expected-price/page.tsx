@@ -4,10 +4,11 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { AppShell } from "@/components/app-shell";
+import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
+import { Button } from "@/components/ui-primitives";
 import type { Device } from "@/domain/types";
 import { hasPreliminaryValuation, updateExpectedPrice, type StoredValuationSession } from "@/lib/valuation-session";
 
-const valuationProgress = ["สินค้า", "สภาพ", "ราคา", "ข้อมูลติดต่อ"];
 const storageKey = "atlast.valuation.session";
 const analyticsService = new MockAnalyticsService();
 const noSessionSubscription = () => () => undefined;
@@ -83,20 +84,10 @@ export default function ExpectedPricePage() {
       title="ราคาที่ต้องการ"
       description="บอกเราว่าคุณต้องการขายสินค้านี้ในราคาเท่าไหร่"
       compactHeader
-      backAction={
-        <button
-          type="button"
-          onClick={handleBack}
-          aria-label="ย้อนกลับ"
-          className="rounded-full p-1 text-xl text-slate-700 hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
-        >
-          ←
-        </button>
-      }
+      flowStage="price"
+      backAction={<span className="hidden" aria-hidden="true" />}
     >
       <div className="mx-auto max-w-[820px]">
-        <ValuationProgress />
-
         {!storedSession ? (
           <MissingContext
             title="ยังไม่มีสินค้าที่เลือก"
@@ -133,7 +124,7 @@ export default function ExpectedPricePage() {
               <label htmlFor="expected-price" className="mt-7 block">
                 <span className="sr-only">ราคาที่ต้องการขาย เป็นเงินบาท</span>
                 <span className="flex items-center rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-[0_8px_24px_rgba(10,26,22,0.04)] transition focus-within:border-[var(--color-brand-primary)] focus-within:ring-2 focus-within:ring-[var(--color-brand-primary-glow)]">
-                  <span className="mr-3 text-2xl font-semibold text-[var(--color-brand-primary-hover)]" aria-hidden="true">
+                  <span className="mr-3 text-2xl font-semibold text-[var(--color-action-primary)]" aria-hidden="true">
                     ฿
                   </span>
                   <input
@@ -160,44 +151,12 @@ export default function ExpectedPricePage() {
                 </p>
               ) : null}
 
-              <button
-                type="button"
-                onClick={handleContinue}
-                disabled={!isValidAmount}
-                className="mt-5 flex w-full items-center justify-center rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-action-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500 disabled:shadow-none"
-              >
-                ดำเนินการต่อ →
-              </button>
+              <div className="mt-5"><FlowActions back={<FlowBack onClick={handleBack} />} forward={<FlowForward type="button" onClick={handleContinue} disabled={!isValidAmount}>ดำเนินการต่อ</FlowForward>} /></div>
             </section>
           </>
         )}
       </div>
     </AppShell>
-  );
-}
-
-function ValuationProgress() {
-  return (
-    <div className="mb-8 flex items-center gap-2" aria-label="ความคืบหน้าการประเมินราคา">
-      {valuationProgress.map((step, index) => (
-        <div key={step} className="flex min-w-0 flex-1 items-center gap-2">
-          <div
-            className={[
-              "h-1.5 flex-1 rounded-full",
-              index <= 2 ? "bg-[var(--color-brand-primary)]" : "bg-slate-200",
-            ].join(" ")}
-          />
-          <span
-            className={[
-              "hidden whitespace-nowrap text-xs sm:block",
-              index === 2 ? "font-semibold text-slate-900" : index < 2 ? "text-[var(--color-brand-primary-hover)]" : "text-slate-400",
-            ].join(" ")}
-          >
-            {step}
-          </span>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -216,13 +175,7 @@ function MissingContext({
     <div className="rounded-3xl bg-white px-5 py-10 text-center">
       <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-slate-600">{description}</p>
-      <button
-        type="button"
-        onClick={onAction}
-        className="mt-6 rounded-full bg-[var(--color-action-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--color-action-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
-      >
-        {actionLabel}
-      </button>
+      <Button className="mt-6" onClick={onAction}>{actionLabel}</Button>
     </div>
   );
 }
