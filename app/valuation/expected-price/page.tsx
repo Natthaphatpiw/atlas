@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { AppShell } from "@/components/app-shell";
 import type { Device } from "@/domain/types";
-import { hasCompletedAssessment, updateExpectedPrice, type StoredValuationSession } from "@/lib/valuation-session";
+import { hasPreliminaryValuation, updateExpectedPrice, type StoredValuationSession } from "@/lib/valuation-session";
 
-const valuationProgress = ["สินค้า", "สภาพ", "ราคาที่ต้องการ", "ผลประเมิน"];
+const valuationProgress = ["สินค้า", "สภาพ", "ราคา", "ข้อมูลติดต่อ"];
 const storageKey = "atlast.valuation.session";
 const analyticsService = new MockAnalyticsService();
 const noSessionSubscription = () => () => undefined;
@@ -47,9 +47,8 @@ export default function ExpectedPricePage() {
     numericAmount !== null &&
     Number.isSafeInteger(numericAmount) &&
     numericAmount > 0;
-  const hasCompletedPrerequisites =
-    hasCompletedAssessment(storedSession);
-  const prerequisiteRoute = storedSession?.device ? "/valuation/condition" : "/valuation/device";
+  const hasCompletedPrerequisites = hasPreliminaryValuation(storedSession);
+  const prerequisiteRoute = storedSession?.device ? "/valuation/result" : "/valuation/device";
 
   const handleInputChange = (value: string) => {
     setHasInteracted(true);
@@ -58,10 +57,7 @@ export default function ExpectedPricePage() {
   };
 
   const handleBack = () => {
-    if (hasCompletedPrerequisites && isValidAmount && numericAmount !== null) {
-      updateExpectedPrice(numericAmount);
-    }
-    router.push("/valuation/condition");
+    router.push("/valuation/result");
   };
 
   const handleContinue = () => {
@@ -69,7 +65,7 @@ export default function ExpectedPricePage() {
       return;
     }
 
-    updateExpectedPrice(numericAmount);
+    if (!updateExpectedPrice(numericAmount)) return;
     analyticsService.track({
       eventName: "expected_price_entered",
       sessionId: storedSession.session.id,
@@ -79,7 +75,7 @@ export default function ExpectedPricePage() {
       expectedAmount: numericAmount,
       timestamp: new Date().toISOString(),
     });
-    router.push("/valuation/result");
+    router.push("/valuation/transaction-intent");
   };
 
   return (
@@ -110,9 +106,9 @@ export default function ExpectedPricePage() {
           />
         ) : !hasCompletedPrerequisites ? (
           <MissingContext
-            title="ยังตอบคำถามสภาพไม่ครบ"
-            description="ตอบคำถามเกี่ยวกับสภาพสินค้าให้ครบก่อนระบุราคาที่ต้องการ"
-            actionLabel="กลับไปตอบคำถาม"
+            title="ยังไม่มีผลประเมินเบื้องต้น"
+            description="ดูผลประเมินเบื้องต้นก่อนระบุราคาที่คุณต้องการขาย"
+            actionLabel="ดูผลประเมิน"
             onAction={() => router.push(prerequisiteRoute)}
           />
         ) : (
@@ -122,9 +118,17 @@ export default function ExpectedPricePage() {
               <p className="mt-0.5 text-sm text-slate-600">{formatDeviceSpecs(storedSession.device)}</p>
             </div>
 
+            <div className="mb-6 rounded-2xl border border-[var(--color-border-soft)] bg-white px-4 py-4">
+              <p className="text-sm text-slate-500">ราคาประเมินเบื้องต้นจาก Atlas</p>
+              <p className="mt-1 text-xl font-semibold text-slate-900">
+                ฿{storedSession.session.preliminaryValuation!.minPrice.toLocaleString("en-US")} – ฿{storedSession.session.preliminaryValuation!.maxPrice.toLocaleString("en-US")}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-slate-500">ใช้เป็นข้อมูลประกอบการตัดสินใจ ราคาที่คุณระบุจะไม่เปลี่ยนผลประเมินเบื้องต้นนี้</p>
+            </div>
+
             <section>
               <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">คุณต้องการขายในราคาเท่าไหร่?</h2>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">ระบุราคาที่คุณคาดหวัง เพื่อใช้ประกอบการประเมินเบื้องต้น</p>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">ระบุราคาที่คุณต้องการอย่างอิสระ โดย Atlas จะไม่ปรับราคาให้อัตโนมัติ</p>
 
               <label htmlFor="expected-price" className="mt-7 block">
                 <span className="sr-only">ราคาที่ต้องการขาย เป็นเงินบาท</span>
@@ -180,7 +184,7 @@ function ValuationProgress() {
           <div
             className={[
               "h-1.5 flex-1 rounded-full",
-              index < 3 ? "bg-[var(--color-brand-primary)]" : "bg-slate-200",
+              index <= 2 ? "bg-[var(--color-brand-primary)]" : "bg-slate-200",
             ].join(" ")}
           />
           <span

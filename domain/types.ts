@@ -15,11 +15,16 @@ export type SessionStatus =
   | "draft"
   | "device_selected"
   | "condition_completed"
+  | "preliminary_valuation_available"
   | "expected_price_entered"
+  | "transaction_intent_selected"
+  /** Legacy statuses retained only for recovery from earlier browser sessions. */
   | "estimated"
   | "lead_collected"
   | "handoff_ready"
   | "request_submitted";
+
+export type TransactionIntent = "outright_sale" | "sell_and_repurchase";
 
 export type ConditionScore = "excellent" | "good" | "fair" | "poor";
 
@@ -76,6 +81,12 @@ export interface ExpectedPrice {
   createdAt: string;
 }
 
+export interface PreliminaryValuation {
+  minPrice: number;
+  maxPrice: number;
+  currency: CurrencyCode;
+}
+
 export interface EstimatedPrice {
   amount: number;
   currency: CurrencyCode;
@@ -99,7 +110,9 @@ export interface ValuationSession {
   conditionAnswers: ConditionAnswer[];
   assessment?: SellerAssessment;
   request?: MockRequestReceipt;
+  preliminaryValuation?: PreliminaryValuation;
   expectedPrice?: ExpectedPrice;
+  transactionIntent?: TransactionIntent;
   estimatedPrice?: EstimatedPrice;
   createdAt: string;
   updatedAt: string;
@@ -136,6 +149,7 @@ export interface AnalyticsEvent {
   confidence?: number;
   timestamp: string;
   sourceChannel?: string;
+  transactionIntent?: TransactionIntent;
   questionId?: string;
   assessmentVersion?: number;
 }
@@ -147,6 +161,7 @@ export type AnalyticsEventName =
   | "condition_question_answered"
   | "condition_section_completed"
   | "expected_price_entered"
+  | "transaction_intent_selected"
   | "valuation_calculated"
   | "valuation_result_viewed"
   | "seller_proceeded"

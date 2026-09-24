@@ -11,9 +11,9 @@ Atlas currently implements a seller valuation/contact journey ending at a mock r
 - no payment, KYC or matching;
 - no approved production valuation algorithm.
 
-The valuation context currently includes a seller-reported Device Assessment. It is preliminary browser-local input, not an Atlas or Apple verified inspection. A future physical verification may confirm or override it before a final price; no verified inspection schema or downstream payload is defined.
+The valuation context currently includes a seller-reported Device Assessment, the fixed preliminary range, the seller's expected price and structured `transactionIntent` (`outright_sale` or `sell_and_repurchase`). The assessment is preliminary browser-local input, not an Atlas or Apple verified inspection. A future physical verification may confirm or override it before a final price; no verified inspection schema or downstream payload is defined. Sell-and-repurchase is intent only and defines no financial or contract terms.
 
-Seller Contact sends name, phone, optional unverified LINE-ID text and consent only to an in-memory mock service. The browser stores a non-PII receipt containing valuation context, mock reference and `prototype_pending` LINE state; it does not retain contact data or consent evidence. The Connect LINE CTA is a prototype interaction only. `request_submitted` means that receipt exists locally, and `line_connect_started` describes the CTA interaction, not external delivery. No fake redirect/completion analytics are emitted.
+Seller Contact sends name, phone, optional unverified LINE-ID text and consent only to an in-memory mock service. The browser stores a non-PII receipt containing safe valuation context, assessment review metadata without raw answers, a mock reference and `prototype_pending` LINE state; it does not retain contact data or consent evidence. The Connect LINE CTA is a prototype interaction only. `request_submitted` means that receipt exists locally, and `line_connect_started` describes the CTA interaction, not external delivery. No fake redirect/completion analytics are emitted.
 
 ## Future conceptual sequence
 

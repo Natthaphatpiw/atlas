@@ -1,8 +1,8 @@
-import type { MockRequestReceipt, RequestContext } from "@/domain/valuation-request";
+import type { MockRequestReceipt, RequestReceiptContext } from "@/domain/valuation-request";
 import { getMockAssessment } from "@/adapters/mock/assessment";
 import type { AssessmentAnswer, AssessmentDefinition } from "@/domain/assessment";
 import { answerIdentity, assessmentComplete, isCurrentAssessment, pruneAnswers } from "@/lib/assessment";
-import type { Device, ExpectedPrice, SessionStatus, ValuationSession } from "@/domain/types";
+import type { Device, ExpectedPrice, PreliminaryValuation, SessionStatus, TransactionIntent, ValuationSession } from "@/domain/types";
 
 const storageKey = "atlast.valuation.session";
 
@@ -10,14 +10,18 @@ const sessionStages: SessionStatus[] = [
   "draft",
   "device_selected",
   "condition_completed",
+  "preliminary_valuation_available",
   "expected_price_entered",
-  "estimated",
-  "lead_collected",
-  "handoff_ready",
+  "transaction_intent_selected",
   "request_submitted",
 ];
 
 export function hasReachedStage(status: SessionStatus | undefined, stage: SessionStatus) {
+  const legacyStages: SessionStatus[] = ["estimated", "lead_collected", "handoff_ready"];
+  if (legacyStages.includes(status as SessionStatus) || legacyStages.includes(stage)) {
+    return status !== undefined && legacyStages.includes(status) && legacyStages.includes(stage) &&
+      legacyStages.indexOf(status) >= legacyStages.indexOf(stage);
+  }
   return status !== undefined && sessionStages.indexOf(status) >= sessionStages.indexOf(stage);
 }
 
@@ -61,7 +65,16 @@ export function readValuationSession(): StoredValuationSession | null {
   }
 
   try {
-    return JSON.parse(rawSession) as StoredValuationSession;
+    const parsed = JSON.parse(rawSession) as StoredValuationSession;
+    const receiptAssessment = parsed.session?.request?.context?.assessment as
+      (RequestReceiptContext["assessment"] & { answers?: unknown }) | undefined;
+    if (receiptAssessment && "answers" in receiptAssessment) {
+      const safeAssessment = { ...receiptAssessment };
+      delete safeAssessment.answers;
+      parsed.session.request!.context.assessment = safeAssessment;
+      window.sessionStorage.setItem(storageKey, JSON.stringify(parsed));
+    }
+    return parsed;
   } catch {
     window.sessionStorage.removeItem(storageKey);
     return null;
@@ -73,9 +86,11 @@ export function hasCompletedAssessment(stored: StoredValuationSession | null | u
   if (!stored?.device || !stored.session) return false;
   const definition = getMockAssessment(stored.device);
   const assessment = stored.session.assessment;
+  const legacyCompletedStatus = stored.session.status === "estimated" ||
+    stored.session.status === "lead_collected" || stored.session.status === "handoff_ready";
   return isCurrentAssessment(assessment, definition) && Boolean(assessment.reviewedAt) &&
     assessmentComplete(definition, stored.device, assessment.answers) &&
-    hasReachedStage(stored.session.status, "condition_completed");
+    (hasReachedStage(stored.session.status, "condition_completed") || legacyCompletedStatus);
 }
 
 export function saveAssessmentAnswers(definition: AssessmentDefinition, answers: AssessmentAnswer[], reviewed = false) {
@@ -103,17 +118,55 @@ export function saveAssessmentAnswers(definition: AssessmentDefinition, answers:
     },
   };
   if (!unchanged) {
+    delete updated.session.preliminaryValuation;
     delete updated.session.expectedPrice;
+    delete updated.session.transactionIntent;
     delete updated.session.estimatedPrice;
   }
   saveValuationSession(updated);
   return updated;
 }
 
+export function markPreliminaryValuationAvailable(preliminaryValuation: PreliminaryValuation) {
+  const stored = readValuationSession();
+  if (!stored || stored.session.request || !hasCompletedAssessment(stored) ||
+      preliminaryValuation.currency !== "THB" || !Number.isFinite(preliminaryValuation.minPrice) ||
+      !Number.isFinite(preliminaryValuation.maxPrice) || preliminaryValuation.minPrice > preliminaryValuation.maxPrice) {
+    return null;
+  }
+
+  const existing = stored.session.preliminaryValuation;
+  if (existing?.currency === preliminaryValuation.currency && existing.minPrice === preliminaryValuation.minPrice &&
+      existing.maxPrice === preliminaryValuation.maxPrice &&
+      hasReachedStage(stored.session.status, "preliminary_valuation_available")) {
+    return stored;
+  }
+
+  const updated: StoredValuationSession = {
+    ...stored,
+    session: {
+      ...stored.session,
+      status: "preliminary_valuation_available",
+      preliminaryValuation,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  delete updated.session.transactionIntent;
+  saveValuationSession(updated);
+  return updated;
+}
+
+export function hasPreliminaryValuation(stored: StoredValuationSession | null | undefined) {
+  const valuation = stored?.session.preliminaryValuation;
+  return hasCompletedAssessment(stored) && Boolean(valuation && valuation.currency === "THB" &&
+    Number.isFinite(valuation.minPrice) && Number.isFinite(valuation.maxPrice) && valuation.minPrice <= valuation.maxPrice) &&
+    hasReachedStage(stored?.session.status, "preliminary_valuation_available");
+}
+
 export function updateExpectedPrice(amount: number) {
   const storedSession = readValuationSession();
 
-  if (!storedSession || storedSession.session.request || !hasCompletedAssessment(storedSession)) {
+  if (!storedSession || storedSession.session.request || !hasPreliminaryValuation(storedSession)) {
     return null;
   }
 
@@ -140,9 +193,33 @@ export function updateExpectedPrice(amount: number) {
       updatedAt: new Date().toISOString(),
     },
   };
+  delete updatedSession.session.transactionIntent;
 
   saveValuationSession(updatedSession);
   return updatedSession;
+}
+
+export function updateTransactionIntent(transactionIntent: TransactionIntent) {
+  const stored = readValuationSession();
+  if (!stored || stored.session.request || !hasPreliminaryValuation(stored) ||
+      !Number.isSafeInteger(stored.session.expectedPrice?.amount) || (stored.session.expectedPrice?.amount ?? 0) <= 0 ||
+      !hasReachedStage(stored.session.status, "expected_price_entered") ||
+      !["outright_sale", "sell_and_repurchase"].includes(transactionIntent)) return null;
+
+  if (stored.session.transactionIntent === transactionIntent &&
+      hasReachedStage(stored.session.status, "transaction_intent_selected")) return stored;
+
+  const updated: StoredValuationSession = {
+    ...stored,
+    session: {
+      ...stored.session,
+      status: "transaction_intent_selected",
+      transactionIntent,
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  saveValuationSession(updated);
+  return updated;
 }
 
 export function markLeadCollected(sessionId: string) {
@@ -216,9 +293,10 @@ export function continueWithDevice(device: Device) {
 
 
 export function hasRequestPrerequisites(stored: StoredValuationSession | null | undefined) {
-  return hasCompletedAssessment(stored) && stored?.session.deviceId === stored?.device.id &&
+  return hasPreliminaryValuation(stored) && stored?.session.deviceId === stored?.device.id &&
     Number.isSafeInteger(stored?.session.expectedPrice?.amount) && (stored?.session.expectedPrice?.amount ?? 0) > 0 &&
-    hasReachedStage(stored?.session.status, "expected_price_entered");
+    (stored?.session.transactionIntent === "outright_sale" || stored?.session.transactionIntent === "sell_and_repurchase") &&
+    hasReachedStage(stored?.session.status, "transaction_intent_selected");
 }
 
 export function hasSubmittedRequest(stored: StoredValuationSession | null | undefined): boolean {
@@ -227,20 +305,24 @@ export function hasSubmittedRequest(stored: StoredValuationSession | null | unde
     request.sessionId === stored.session.id && request.state === "submitted" &&
     request.lineConnection === "prototype_pending" && typeof request.id === "string" &&
     /^MOCK-[A-F0-9]{8}$/.test(request.reference) && typeof request.submittedAt === "string" &&
-    request.context?.device && request.context?.assessment && request.context?.expectedPrice &&
+    request.context?.device && request.context?.assessment && request.context?.expectedPrice && request.context?.transactionIntent &&
     request.context?.preliminaryValuation && hasRequestPrerequisites(stored) &&
     requestContextMatches(stored, request.context));
 }
 
-function requestContextMatches(stored: StoredValuationSession, context: RequestContext) {
+function requestContextMatches(stored: StoredValuationSession, context: RequestReceiptContext) {
   const assessment = stored.session.assessment;
-  if (!assessment || !context?.device?.specs || !context.expectedPrice || !context.preliminaryValuation) return false;
-  const definition = getMockAssessment(stored.device);
-  if (!isCurrentAssessment(context.assessment, definition) || !context.assessment.reviewedAt) return false;
+  if (!assessment || !context?.device?.specs || !context.expectedPrice || !context.preliminaryValuation || !context.transactionIntent) return false;
   const range = context.preliminaryValuation;
   return hasSameDeviceConfiguration(stored.device, context.device) &&
-    answerIdentity(assessment.answers) === answerIdentity(context.assessment.answers) &&
+    assessment.definitionId === context.assessment?.definitionId &&
+    assessment.version === context.assessment?.version &&
+    assessment.reviewedAt === context.assessment?.reviewedAt &&
+    stored.session.preliminaryValuation?.minPrice === range.minPrice &&
+    stored.session.preliminaryValuation?.maxPrice === range.maxPrice &&
+    stored.session.preliminaryValuation?.currency === range.currency &&
     stored.session.expectedPrice?.amount === context.expectedPrice.amount && context.expectedPrice.currency === "THB" &&
+    stored.session.transactionIntent === context.transactionIntent &&
     range.currency === "THB" && Number.isFinite(range.minPrice) && Number.isFinite(range.maxPrice) &&
     range.minPrice <= range.maxPrice;
 }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
-import { hasCompletedAssessment, hasRequestPrerequisites, hasSubmittedRequest, type StoredValuationSession } from "@/lib/valuation-session";
+import { hasCompletedAssessment, hasPreliminaryValuation, hasReachedStage, hasSubmittedRequest, type StoredValuationSession } from "@/lib/valuation-session";
 
 const analytics = new MockAnalyticsService();
 const noSubscription = () => () => undefined;
@@ -32,8 +32,10 @@ export default function ConnectLinePage() {
   }, [request]);
   const recovery = !stored?.device ? ["เลือกสินค้า", "/valuation/device"]
     : !hasCompletedAssessment(stored) ? ["ตอบคำถามสภาพ", "/valuation/condition"]
-      : !hasRequestPrerequisites(stored) ? ["ระบุราคาที่ต้องการ", "/valuation/expected-price"]
-        : ["กรอกข้อมูลติดต่อและส่งคำขอ", "/valuation/lead"];
+      : !hasPreliminaryValuation(stored) ? ["ดูผลประเมิน", "/valuation/result"]
+        : !hasReachedStage(stored.session.status, "expected_price_entered") ? ["ระบุราคาที่ต้องการ", "/valuation/expected-price"]
+          : !hasReachedStage(stored.session.status, "transaction_intent_selected") ? ["เลือกรูปแบบการทำรายการ", "/valuation/transaction-intent"]
+            : ["กรอกข้อมูลติดต่อและส่งคำขอ", "/valuation/lead"];
   return <AppShell title="เชื่อมต่อ LINE" description="ช่องทางติดต่อและติดตามคำขอหลังส่งข้อมูล" compactHeader>
     <div className="mx-auto max-w-[640px]">
       {!request ? <section className="rounded-2xl bg-white p-5">
@@ -53,6 +55,7 @@ export default function ConnectLinePage() {
           <dl className="mt-4 space-y-3 text-sm">
             <div><dt className="text-slate-500">ราคาที่คุณต้องการ</dt><dd className="mt-1">฿{request.context.expectedPrice.amount.toLocaleString("en-US")}</dd></div>
             <div><dt className="text-slate-500">ราคาประเมินเบื้องต้น (ตัวอย่าง)</dt><dd className="mt-1">฿{request.context.preliminaryValuation.minPrice.toLocaleString("en-US")} – ฿{request.context.preliminaryValuation.maxPrice.toLocaleString("en-US")}</dd></div>
+            <div><dt className="text-slate-500">รูปแบบการทำรายการ</dt><dd className="mt-1">{request.context.transactionIntent === "outright_sale" ? "ขายขาด" : "ขายฝาก"}</dd></div>
           </dl>
         </section>
         <h3 className="mt-6 font-semibold">เชื่อมต่อ LINE เพื่อรับการติดต่อและติดตามรายการ</h3>

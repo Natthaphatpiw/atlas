@@ -191,15 +191,17 @@ test("new assessment retains legacy answers, keeps its session ID, and resets do
 test("unchanged reviewed answers preserve later status; a changed answer clears it", () => {
   global.window = memoryWindow({ device: iphone, session: { id: "independent-session", deviceId: iphone.id, status: "device_selected", conditionAnswers: [], createdAt: "old", updatedAt: "old" } });
   const reviewed = session.saveAssessmentAnswers(definition, completeIphoneAnswers(), true);
-  const progressed = { ...reviewed, session: { ...reviewed.session, status: "handoff_ready", expectedPrice: { amount: 22000, currency: "THB", enteredBy: "seller", source: "manual_entry", createdAt: "now" }, estimatedPrice: { amount: 22000 } } };
+  const progressed = { ...reviewed, session: { ...reviewed.session, status: "transaction_intent_selected", preliminaryValuation: { minPrice: 24500, maxPrice: 27000, currency: "THB" }, expectedPrice: { amount: 22000, currency: "THB", enteredBy: "seller", source: "manual_entry", createdAt: "now" }, transactionIntent: "outright_sale" } };
   global.window = memoryWindow(progressed);
   const same = session.saveAssessmentAnswers(definition, completeIphoneAnswers(), true);
-  assert.equal(same.session.status, "handoff_ready");
+  assert.equal(same.session.status, "transaction_intent_selected");
   assert.equal(same.session.expectedPrice.amount, 22000);
   const changed = completeIphoneAnswers({ device_powers_on: "yes" });
   const updated = session.saveAssessmentAnswers(definition, changed, true);
   assert.equal(updated.session.status, "condition_completed");
   assert.equal(updated.session.expectedPrice, undefined);
+  assert.equal(updated.session.preliminaryValuation, undefined);
+  assert.equal(updated.session.transactionIntent, undefined);
   assert.equal(updated.session.estimatedPrice, undefined);
 });
 
@@ -293,7 +295,7 @@ test("semantic answer identity preserves downstream progress across ordering and
     .concat([choice("display_replacement_provenance", "used"), choice("camera_replacement_provenance", "third_party")]);
   assert.equal(assessment.assessmentComplete(definition, iphone, original), true);
   const reviewed = session.saveAssessmentAnswers(definition, original, true);
-  const progressed = { ...reviewed, session: { ...reviewed.session, status: "handoff_ready", expectedPrice: { amount: 22000, currency: "THB", enteredBy: "seller", source: "manual_entry", createdAt: "now" }, estimatedPrice: { amount: 22000 } } };
+  const progressed = { ...reviewed, session: { ...reviewed.session, status: "transaction_intent_selected", preliminaryValuation: { minPrice: 24500, maxPrice: 27000, currency: "THB" }, expectedPrice: { amount: 22000, currency: "THB", enteredBy: "seller", source: "manual_entry", createdAt: "now" }, transactionIntent: "sell_and_repurchase" } };
   const reordered = [...original].reverse().map((item, index) => ({
     ...item,
     answeredAt: `2026-09-23T00:00:${String(index).padStart(2, "0")}.000Z`,
@@ -304,9 +306,10 @@ test("semantic answer identity preserves downstream progress across ordering and
   assert.equal(assessment.answerIdentity(original), assessment.answerIdentity(reordered));
   global.window = memoryWindow(progressed);
   const same = session.saveAssessmentAnswers(definition, reordered, true);
-  assert.equal(same.session.status, "handoff_ready");
+  assert.equal(same.session.status, "transaction_intent_selected");
   assert.equal(same.session.expectedPrice.amount, 22000);
-  assert.equal(same.session.estimatedPrice.amount, 22000);
+  assert.equal(same.session.preliminaryValuation.minPrice, 24500);
+  assert.equal(same.session.transactionIntent, "sell_and_repurchase");
 });
 
 test("basic fallback uses stable machine option IDs for Samsung and MacBook", () => {

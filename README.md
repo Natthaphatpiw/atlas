@@ -1,11 +1,11 @@
 # Atlas
 
-Atlas is a Thai-first, responsive seller valuation Frontend MVP. It collects device details, a seller-reported device assessment, expected selling price and contact details/consent for one mock valuation-request submission. It is not an operational pawn/loan product.
+Atlas is a Thai-first, responsive seller valuation Frontend MVP. It collects device details, a seller-reported assessment, shows a preliminary valuation, then collects expected price, transaction intent and contact/consent for one mock valuation-request submission. It is not an operational pawn/loan product.
 
 ## Current implementation
 
 - Next.js 16.3.5 App Router, React 19, TypeScript and Tailwind CSS 4.
-- Progressive device selection, a saved structured Seller Device Assessment, safe-integer THB price entry, preliminary results, seller contact, a mock request receipt and a prototype LINE continuation screen.
+- Progressive device selection, a saved structured Seller Device Assessment, preliminary results, safe-integer THB price entry, required transaction intent, seller contact, a mock request receipt and a prototype LINE continuation screen.
 - Device Selection optionally previews up to five seller-selected JPEG, PNG, or WebP photos (10MB each). They are browser-memory previews only: they are not uploaded, valued, analyzed, included in analytics/receipts, or retained after refresh or route remounting.
 - The research-backed mock catalog contains 81 phones across 11 brands, spanning first-release years 2020–2026, plus the existing MacBook fixture. Model storage comes from manufacturer sources; verified colors remain on the Apple fixtures and the compatible Galaxy S24 Ultra snapshot. It is curated frontend UX test data, not authoritative production or region-wide inventory.
 - Valuation progress lives in browser `sessionStorage`, not a backend.
@@ -21,8 +21,9 @@ Atlas is a Thai-first, responsive seller valuation Frontend MVP. It collects dev
 | `/valuation` | Redirects to `/valuation/device`; no separate start screen |
 | `/valuation/device` | Category, brand, model and specs |
 | `/valuation/condition` | Seller-reported Device Assessment and review |
-| `/valuation/expected-price` | Expected selling price in integer THB |
 | `/valuation/result` | Preliminary mock range |
+| `/valuation/expected-price` | Expected selling price in integer THB after viewing the range |
+| `/valuation/transaction-intent` | Required outright-sale or sell-and-repurchase intent |
 | `/valuation/lead` | Seller contact and required consent for a mock request |
 | `/valuation/handoff` | Mock request receipt and prototype LINE continuation |
 

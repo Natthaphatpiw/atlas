@@ -28,6 +28,7 @@ require.extensions[".ts"] = function transpileTypeScript(module, filename) {
 const { getMockAssessment } = require("../adapters/mock/assessment.ts");
 const { mockDevices } = require("../adapters/mock/devices.ts");
 const { MockRequestService } = require("../adapters/mock/request.ts");
+const { MockValuationService } = require("../adapters/mock/valuation.ts");
 const assessment = require("../lib/assessment.ts");
 const sellerContact = require("../lib/seller-contact.ts");
 const session = require("../lib/valuation-session.ts");
@@ -72,7 +73,7 @@ function storedReadySession(id = "request-session") {
     session: {
       id,
       deviceId: iphone.id,
-      status: "estimated",
+      status: "transaction_intent_selected",
       conditionAnswers: [],
       assessment: {
         definitionId: definition.id,
@@ -81,8 +82,9 @@ function storedReadySession(id = "request-session") {
         answers,
         reviewedAt: "2026-09-23T00:00:00.000Z",
       },
+      preliminaryValuation: { minPrice: 24500, maxPrice: 27000, currency: "THB" },
       expectedPrice: { amount: 22000, currency: "THB", enteredBy: "seller", source: "manual_entry", createdAt: "2026-09-23T00:00:00.000Z" },
-      estimatedPrice: { amount: 22000 },
+      transactionIntent: "outright_sale",
       createdAt: "2026-09-23T00:00:00.000Z",
       updatedAt: "2026-09-23T00:00:00.000Z",
     },
@@ -94,7 +96,8 @@ function requestContext(stored) {
     device: stored.device,
     assessment: stored.session.assessment,
     expectedPrice: stored.session.expectedPrice,
-    preliminaryValuation: { minPrice: 24500, maxPrice: 27000, currency: "THB" },
+    preliminaryValuation: stored.session.preliminaryValuation,
+    transactionIntent: stored.session.transactionIntent,
   };
 }
 
@@ -123,6 +126,71 @@ test("seller contact requires name, phone, and consent", () => {
   assert.equal(sellerContact.contactErrors({ fullName: "Ada", phone: "081-234 5678", consentToContact: true }).phone, "");
 });
 
+test("valuation-first lifecycle requires result, expected price, and explicit transaction intent", async () => {
+  global.window = memoryWindow({
+    device: iphone,
+    session: { id: "valuation-first", deviceId: iphone.id, status: "device_selected", conditionAnswers: [], createdAt: "old", updatedAt: "old" },
+  });
+  const reviewed = session.saveAssessmentAnswers(definition, completeAnswers(), true);
+  assert.equal(reviewed.session.status, "condition_completed");
+  assert.equal(reviewed.session.transactionIntent, undefined);
+  assert.equal(session.updateExpectedPrice(22000), null);
+  assert.equal(session.updateTransactionIntent("outright_sale"), null);
+
+  const service = new MockValuationService();
+  const resultWithoutExpectedPrice = await service.getMockValuationResult(reviewed.session);
+  const resultWithExpectedPrice = await service.getMockValuationResult({ ...reviewed.session, expectedPrice: { amount: 99999 } });
+  assert.deepEqual(resultWithoutExpectedPrice, resultWithExpectedPrice);
+
+  const valued = session.markPreliminaryValuationAvailable(resultWithoutExpectedPrice);
+  assert.equal(valued.session.status, "preliminary_valuation_available");
+  const priced = session.updateExpectedPrice(22000);
+  assert.equal(priced.session.status, "expected_price_entered");
+  assert.deepEqual(priced.session.preliminaryValuation, resultWithoutExpectedPrice);
+  assert.equal(session.hasRequestPrerequisites(priced), false);
+
+  const outright = session.updateTransactionIntent("outright_sale");
+  assert.equal(outright.session.status, "transaction_intent_selected");
+  assert.equal(outright.session.transactionIntent, "outright_sale");
+  assert.equal(session.hasRequestPrerequisites(outright), true);
+  const repurchase = session.updateTransactionIntent("sell_and_repurchase");
+  assert.equal(repurchase.session.transactionIntent, "sell_and_repurchase");
+  assert.equal(repurchase.session.expectedPrice.amount, 22000);
+  assert.deepEqual(repurchase.session.preliminaryValuation, resultWithoutExpectedPrice);
+
+  const repriced = session.updateExpectedPrice(23000);
+  assert.equal(repriced.session.status, "expected_price_entered");
+  assert.deepEqual(repriced.session.preliminaryValuation, resultWithoutExpectedPrice);
+  assert.equal(repriced.session.transactionIntent, undefined);
+  assert.equal(session.hasRequestPrerequisites(repriced), false);
+});
+
+test("assessment changes clear the preliminary valuation and every downstream choice", () => {
+  const stored = storedReadySession("assessment-invalidation");
+  global.window = memoryWindow(stored);
+  const changed = completeAnswers().map((item) => item.questionId === "display_glass_condition"
+    ? choice(item.questionId, "minor") : item);
+  const updated = session.saveAssessmentAnswers(definition, changed, true);
+  assert.equal(updated.session.status, "condition_completed");
+  assert.equal(updated.session.preliminaryValuation, undefined);
+  assert.equal(updated.session.expectedPrice, undefined);
+  assert.equal(updated.session.transactionIntent, undefined);
+});
+
+test("legacy ordering preserves safe seller data but cannot skip the new result and intent steps", () => {
+  const legacy = storedReadySession("legacy-order");
+  legacy.session.status = "estimated";
+  delete legacy.session.preliminaryValuation;
+  delete legacy.session.transactionIntent;
+  global.window = memoryWindow(legacy);
+  assert.equal(session.hasRequestPrerequisites(legacy), false);
+  assert.equal(session.updateTransactionIntent("outright_sale"), null);
+  const recovered = session.markPreliminaryValuationAvailable({ minPrice: 24500, maxPrice: 27000, currency: "THB" });
+  assert.equal(recovered.session.status, "preliminary_valuation_available");
+  assert.equal(recovered.session.expectedPrice.amount, 22000);
+  assert.equal(session.hasRequestPrerequisites(recovered), false);
+});
+
 test("mock receipt is a non-PII browser-local prototype receipt", async () => {
   const stored = storedReadySession();
   const receipt = await receiptFor(stored);
@@ -131,6 +199,9 @@ test("mock receipt is a non-PII browser-local prototype receipt", async () => {
   assert.match(receipt.reference, /^MOCK-[A-F0-9]{8}$/);
   assert.equal(receipt.lineConnection, "prototype_pending");
   assert.equal(receipt.sessionId, stored.session.id);
+  assert.equal(receipt.context.transactionIntent, "outright_sale");
+  assert.equal(receipt.context.assessment.definitionId, definition.id);
+  assert.equal("answers" in receipt.context.assessment, false);
   assert.ok(!serialized.includes("Ada Seller"));
   assert.ok(!serialized.includes("0812345678"));
   assert.ok(!serialized.includes("ada-line"));
@@ -167,6 +238,18 @@ test("a changed context while the mock service awaits is refused", async () => {
   assert.equal(session.readValuationSession().session.request, undefined);
 });
 
+test("changing transaction intent preserves valuation state and makes an older receipt stale", async () => {
+  const stored = storedReadySession("intent-change");
+  global.window = memoryWindow(stored);
+  const oldReceipt = await receiptFor(stored);
+  const changed = session.updateTransactionIntent("sell_and_repurchase");
+  assert.equal(changed.session.expectedPrice.amount, 22000);
+  assert.deepEqual(changed.session.preliminaryValuation, stored.session.preliminaryValuation);
+  assert.equal(changed.session.transactionIntent, "sell_and_repurchase");
+  assert.equal(session.markRequestSubmitted(oldReceipt), null);
+  assert.equal(session.readValuationSession().session.request, undefined);
+});
+
 test("a submitted request prevents all assessment, price, device, and raw-session mutations", async () => {
   const stored = storedReadySession();
   global.window = memoryWindow(stored);
@@ -174,6 +257,8 @@ test("a submitted request prevents all assessment, price, device, and raw-sessio
   const before = global.window.sessionStorage.getItem("atlast.valuation.session");
   assert.equal(session.saveAssessmentAnswers(definition, completeAnswers(), true), null);
   assert.equal(session.updateExpectedPrice(21000), null);
+  assert.equal(session.updateTransactionIntent("sell_and_repurchase"), null);
+  assert.equal(session.markPreliminaryValuationAvailable({ minPrice: 24000, maxPrice: 26000, currency: "THB" }), null);
   assert.equal(session.continueWithDevice({ ...iphone, specs: { ...iphone.specs, storage: "128GB" } }).session.request.reference,
     submitted.session.request.reference);
   assert.throws(() => session.saveValuationSession(stored), /Submitted request cannot be edited/);
@@ -190,10 +275,23 @@ test("a persisted receipt remains valid after session-storage parsing on refresh
   assert.equal(session.hasSubmittedRequest(refreshed), true);
   assert.equal(refreshed.session.request.reference, submitted.session.request.reference);
   assert.equal(refreshed.session.request.context.expectedPrice.amount, 22000);
+  assert.equal(refreshed.session.request.context.transactionIntent, "outright_sale");
+});
+
+test("legacy receipts discard retained raw assessment answers on read", async () => {
+  const stored = storedReadySession("legacy-receipt-privacy");
+  global.window = memoryWindow(stored);
+  const submitted = session.markRequestSubmitted(await receiptFor(stored));
+  submitted.session.request.context.assessment.answers = structuredClone(stored.session.assessment.answers);
+  global.window = memoryWindow(submitted);
+  const recovered = session.readValuationSession();
+  assert.equal("answers" in recovered.session.request.context.assessment, false);
+  assert.equal(JSON.parse(global.window.sessionStorage.getItem("atlast.valuation.session")).session.request.context.assessment.answers, undefined);
+  assert.equal(session.hasSubmittedRequest(recovered), true);
 });
 
 test("status alone, incomplete context, and mismatched receipts cannot submit", async () => {
-  for (const status of ["lead_collected", "handoff_ready", "request_submitted"]) {
+  for (const status of ["transaction_intent_selected", "lead_collected", "handoff_ready", "request_submitted"]) {
     const stored = storedReadySession();
     stored.session.status = status;
     assert.equal(session.hasSubmittedRequest(stored), false);
@@ -205,6 +303,8 @@ test("status alone, incomplete context, and mismatched receipts cannot submit", 
     (s) => { delete s.session.assessment.reviewedAt; },
     (s) => { s.session.expectedPrice.amount = 0; },
     (s) => { s.session.expectedPrice.amount = 1.5; },
+    (s) => { delete s.session.preliminaryValuation; },
+    (s) => { delete s.session.transactionIntent; },
     (s) => { s.session.deviceId = "other"; },
   ]) {
     const invalid = structuredClone(stored); change(invalid);
@@ -213,7 +313,8 @@ test("status alone, incomplete context, and mismatched receipts cannot submit", 
   }
   global.window = memoryWindow(stored);
   assert.equal(session.markRequestSubmitted({ ...receipt, sessionId: "other" }), null);
-  assert.equal(session.markRequestSubmitted({ ...receipt, context: { ...receipt.context, assessment: { ...receipt.context.assessment, answers: [null] } } }), null);
+  assert.equal(session.markRequestSubmitted({ ...receipt, context: { ...receipt.context, transactionIntent: "sell_and_repurchase" } }), null);
+  assert.equal(session.markRequestSubmitted({ ...receipt, context: { ...receipt.context, assessment: { ...receipt.context.assessment, reviewedAt: "other" } } }), null);
 });
 
 test("mock service rejects missing consent and invalid required contact", async () => {

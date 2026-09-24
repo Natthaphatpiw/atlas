@@ -1,6 +1,5 @@
 import type { SellerAssessment } from "./assessment";
-import type { Device, ExpectedPrice } from "./types";
-import type { MockValuationResult } from "@/services/valuation-service";
+import type { Device, ExpectedPrice, PreliminaryValuation, TransactionIntent } from "./types";
 
 export interface SellerContact {
   fullName: string;
@@ -13,8 +12,23 @@ export interface SellerContact {
 export interface RequestContext {
   device: Device;
   assessment: SellerAssessment;
+  preliminaryValuation: PreliminaryValuation;
   expectedPrice: ExpectedPrice;
-  preliminaryValuation: MockValuationResult;
+  transactionIntent: TransactionIntent;
+}
+
+export interface ReceiptAssessmentSnapshot {
+  definitionId: string;
+  version: number;
+  reviewedAt: string;
+}
+
+export interface RequestReceiptContext {
+  device: Device;
+  assessment: ReceiptAssessmentSnapshot;
+  preliminaryValuation: PreliminaryValuation;
+  expectedPrice: ExpectedPrice;
+  transactionIntent: TransactionIntent;
 }
 
 /** Transient mock submission only; contact is not retained in browser storage. */
@@ -33,5 +47,5 @@ export interface MockRequestReceipt {
   state: "submitted";
   submittedAt: string;
   lineConnection: "prototype_pending";
-  context: RequestContext;
+  context: RequestReceiptContext;
 }

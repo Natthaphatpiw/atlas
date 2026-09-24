@@ -26,7 +26,7 @@ interface ValuationService {
 - `getDeviceCatalog` returns research-backed frontend mock records with catalog-only brand, release-order, spec-option and provenance metadata. The Device page persists only the compatible `Device` snapshot. A future backend may own catalog records behind this method; database technology and transport are not selected here.
 - `getDeviceAssessment` returns the applicable data-driven seller assessment for the selected device. Its current mock fixture provides detailed iPhone coverage and a basic non-iPhone fallback. It is not a verified inspection or a pricing rule.
 - `getConditionQuestions` is a legacy v1 fixture API. The v2 assessment and its prerequisites do not use it.
-- `getMockValuationResult` is the active result boundary used by Result and Seller Contact; Request Submitted displays the saved range snapshot. It returns a fixed THB range of 24500–27000 and does not calculate from session inputs.
+- `getMockValuationResult` is the active Result boundary. After a completed assessment, Result stores its fixed THB range of 24500–27000 in the browser session; Expected Price, Seller Contact and Request Submitted reuse that snapshot. It does not require or calculate from expected price, transaction intent or photos.
 - `estimateValue` is unused formula-based demo logic. It rejects v2 seller assessments and is not an approved production valuation engine.
 - The active range is preliminary and non-binding. There is no persisted result ID, approved quote, production confidence, provenance or expiry contract.
 
@@ -40,9 +40,9 @@ interface RequestService {
 }
 ```
 
-Current UI input is `{ sessionId, context, contact, source: "atlast_web" }`. `context` holds device, assessment, expected price and preliminary range; `contact` holds `{ fullName, phone, lineIdProvided?, consentToContact: true }`. Name is trimmed, phone is normalized and validated, and consent is required. `lineIdProvided` is unverified seller-entered text, not a LINE identity or integration credential.
+Current UI input is `{ sessionId, context, contact, source: "atlast_web" }`. `context` holds device, assessment, preliminary range, expected price and stable `transactionIntent`; `contact` holds `{ fullName, phone, lineIdProvided?, consentToContact: true }`. Transaction intent is `outright_sale` or `sell_and_repurchase`; the latter does not define financial or contract terms. Name is trimmed, phone is normalized and validated, and consent is required. `lineIdProvided` is unverified seller-entered text, not a LINE identity or integration credential.
 
-The mock returns a non-PII `MockRequestReceipt` with a UUID-style mock ID, `MOCK-...` reference, browser timestamp, `prototype_pending` LINE state and a request-context snapshot. It does not persist the request. The browser session saves the receipt and advances to `request_submitted`, but never saves name, phone, LINE ID or consent evidence. Future submission success must be defined in terms of server persistence, not this mock behavior.
+The mock returns a non-PII `MockRequestReceipt` with a UUID-style mock ID, `MOCK-...` reference, browser timestamp, `prototype_pending` LINE state and a safe request-context snapshot. The receipt keeps assessment definition/version/review metadata for staleness checks, not raw assessment answers. It does not persist the request. The browser session saves the receipt and advances to `request_submitted`, but never saves name, phone, LINE ID or consent evidence. Future submission success must be defined in terms of server persistence, not this mock behavior.
 
 `LeadService` and its domain type remain legacy compatibility boundaries and are unused by the current flow.
 
@@ -73,15 +73,16 @@ Analytics is vendor-neutral. The current mock adapter logs event objects with `c
 | `device_selected` | Device Continue confirms a configuration, including an unchanged one; repeated clicks during navigation are guarded |
 | `condition_question_answered` | Assessment group Continue emits changed answer IDs only after a successful session save |
 | `condition_section_completed` | Review confirmation saves the completed seller assessment; one event covers the whole assessment |
-| `expected_price_entered` | Valid Expected Price Continue saves the value; in-app Back may save without emitting this event |
 | `valuation_result_viewed` | Mock range loads for display on Result |
-| `seller_proceeded` | Result Continue |
+| `seller_proceeded` | Result Continue toward Expected Price |
+| `expected_price_entered` | Valid Expected Price Continue saves the value |
+| `transaction_intent_selected` | Explicit Transaction Intent Continue saves and emits the stable machine value only |
 | `seller_contact_viewed` | Valid Seller Contact form becomes available |
 | `valuation_request_submitted` | Mock request submission succeeds and its non-PII receipt is saved locally |
 | `line_connect_viewed` | Valid request receipt shown on the Connect LINE screen |
 | `line_connect_started` | Prototype Connect LINE CTA interaction; not a redirect, connection or delivery |
 
-Assessment events may include the session/device context, `questionId` and `assessmentVersion`; answer values and option IDs are not emitted. They never include contact PII, raw LINE data or claimed verification results. Genuine page remounts can emit another view/start-of-screen event; there is no global exactly-once delivery guarantee.
+Assessment events may include the session/device context, `questionId` and `assessmentVersion`; answer values and option IDs are not emitted. Transaction Intent analytics may include only `outright_sale` or `sell_and_repurchase`. Events never include contact PII, raw LINE data, photo data or claimed verification results. Genuine page remounts can emit another view/start-of-screen event; there is no global exactly-once delivery guarantee.
 
 Declared but not emitted:
 

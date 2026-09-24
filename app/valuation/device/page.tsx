@@ -34,7 +34,7 @@ const specLabels: Record<string, string> = {
 const analyticsService = new MockAnalyticsService();
 const valuationService = new MockValuationService();
 
-const progressSteps = ["สินค้า", "สภาพ", "ราคาที่ต้องการ", "ผลประเมิน"];
+const progressSteps = ["สินค้า", "สภาพ", "ราคา", "ข้อมูลติดต่อ"];
 
 const noSessionSubscription = () => () => undefined;
 const getStoredSessionRaw = () => window.sessionStorage.getItem("atlast.valuation.session");

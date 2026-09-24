@@ -7,9 +7,9 @@ import { MockValuationService } from "@/adapters/mock/valuation";
 import { AppShell } from "@/components/app-shell";
 import type { Device } from "@/domain/types";
 import { type MockValuationResult } from "@/services/valuation-service";
-import { hasCompletedAssessment, hasReachedStage, type StoredValuationSession } from "@/lib/valuation-session";
+import { hasCompletedAssessment, markPreliminaryValuationAvailable, type StoredValuationSession } from "@/lib/valuation-session";
 
-const valuationProgress = ["สินค้า", "สภาพ", "ราคาที่ต้องการ", "ผลประเมิน"];
+const valuationProgress = ["สินค้า", "สภาพ", "ราคา", "ข้อมูลติดต่อ"];
 const storageKey = "atlast.valuation.session";
 const valuationService = new MockValuationService();
 const analyticsService = new MockAnalyticsService();
@@ -37,12 +37,7 @@ export default function ResultPage() {
   const storedSession = useMemo(() => parseStoredSession(storedSessionRaw), [storedSessionRaw]);
   const [mockResult, setMockResult] = useState<MockValuationResult | null>(null);
 
-  const hasPrerequisites = Boolean(
-    storedSession?.device &&
-      hasCompletedAssessment(storedSession) &&
-      storedSession.session.expectedPrice &&
-      hasReachedStage(storedSession.session.status, "expected_price_entered"),
-  );
+  const hasPrerequisites = Boolean(storedSession?.device && hasCompletedAssessment(storedSession));
 
   useEffect(() => {
     if (!storedSession || !hasPrerequisites) {
@@ -50,6 +45,7 @@ export default function ResultPage() {
     }
 
     void valuationService.getMockValuationResult(storedSession.session).then((nextResult) => {
+      if (!markPreliminaryValuationAvailable(nextResult)) return;
       setMockResult(nextResult);
       analyticsService.track({
         eventName: "valuation_result_viewed",
@@ -63,7 +59,7 @@ export default function ResultPage() {
   }, [hasPrerequisites, storedSession]);
 
   const handleContinue = () => {
-    if (!storedSession) {
+    if (!storedSession || !mockResult || !markPreliminaryValuationAvailable(mockResult)) {
       return;
     }
 
@@ -75,15 +71,11 @@ export default function ResultPage() {
       deviceId: storedSession.device.id,
       timestamp: new Date().toISOString(),
     });
-    router.push("/valuation/lead");
-  };
-
-  const handleEdit = () => {
     router.push("/valuation/expected-price");
   };
 
   const handleBack = () => {
-    router.push("/valuation/expected-price");
+    router.push("/valuation/condition");
   };
 
   return (
@@ -115,9 +107,9 @@ export default function ResultPage() {
         ) : !hasPrerequisites ? (
           <MissingContext
             title="ยังไม่มีข้อมูลครบสำหรับผลประเมิน"
-            description="ทำตามขั้นตอนสินค้า สภาพ และราคาที่ต้องการให้ครบก่อนดูผลประเมิน"
-            actionLabel={hasCompletedAssessment(storedSession) ? "ระบุราคาที่ต้องการ" : "ตอบคำถามสภาพ"}
-            onAction={() => router.push(hasCompletedAssessment(storedSession) ? "/valuation/expected-price" : "/valuation/condition")}
+            description="ตอบคำถามเกี่ยวกับสภาพสินค้าให้ครบก่อนดูผลประเมินเบื้องต้น"
+            actionLabel="ตอบคำถามสภาพ"
+            onAction={() => router.push("/valuation/condition")}
           />
         ) : !mockResult ? (
           <div className="px-4 py-10 text-center text-sm text-slate-500">กำลังเตรียมผลประเมิน...</div>
@@ -126,7 +118,6 @@ export default function ResultPage() {
             storedSession={storedSession}
             mockResult={mockResult}
             onContinue={handleContinue}
-            onEdit={handleEdit}
           />
         )}
       </div>
@@ -138,12 +129,10 @@ function ResultContent({
   storedSession,
   mockResult,
   onContinue,
-  onEdit,
 }: {
   storedSession: StoredValuationSession;
   mockResult: MockValuationResult;
   onContinue: () => void;
-  onEdit: () => void;
 }) {
   return (
     <>
@@ -163,27 +152,13 @@ function ResultContent({
         </p>
       </section>
 
-      <div className="mt-5 border-b border-slate-200 pb-4">
-        <p className="text-sm text-slate-500">ราคาที่คุณต้องการ</p>
-        <p className={getExpectedPriceSize(storedSession.session.expectedPrice?.amount ?? 0)}>
-          ฿{formatNumber(storedSession.session.expectedPrice?.amount ?? 0)}
-        </p>
-      </div>
-
       <div className="mt-5">
         <button
           type="button"
           onClick={onContinue}
           className="flex w-full items-center justify-center rounded-full bg-[var(--color-action-primary)] px-5 py-3.5 text-base font-semibold text-white shadow-[0_8px_20px_rgba(7,192,97,0.18)] transition-colors hover:bg-[var(--color-action-primary-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
         >
-          ดำเนินการต่อ →
-        </button>
-        <button
-          type="button"
-          onClick={onEdit}
-          className="mt-3 flex w-full items-center justify-center rounded-full px-5 py-3 text-sm font-medium text-slate-600 hover:bg-[var(--color-brand-primary-soft)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-brand-primary)]"
-        >
-          แก้ไขข้อมูล
+          ระบุราคาที่ต้องการ →
         </button>
       </div>
     </>
@@ -198,13 +173,13 @@ function ValuationProgress() {
           <div
             className={[
               "h-1.5 flex-1 rounded-full",
-              index < 4 ? "bg-[var(--color-brand-primary)]" : "bg-slate-200",
+              index <= 2 ? "bg-[var(--color-brand-primary)]" : "bg-slate-200",
             ].join(" ")}
           />
           <span
             className={[
               "hidden whitespace-nowrap text-xs sm:block",
-              index === 3 ? "font-semibold text-slate-900" : "text-[var(--color-brand-primary-hover)]",
+              index === 2 ? "font-semibold text-slate-900" : index < 2 ? "text-[var(--color-brand-primary-hover)]" : "text-slate-400",
             ].join(" ")}
           >
             {step}
@@ -247,20 +222,6 @@ function formatPriceRange(result: MockValuationResult) {
 
 function formatNumber(amount: number) {
   return amount.toLocaleString("en-US");
-}
-
-function getExpectedPriceSize(amount: number) {
-  const formattedLength = formatNumber(amount).length;
-  const sizeClass =
-    formattedLength <= 9
-      ? "text-xl"
-      : formattedLength <= 15
-        ? "text-lg"
-        : formattedLength <= 22
-          ? "text-base"
-          : "text-sm";
-
-  return `mt-1 max-w-full break-words font-semibold leading-snug text-slate-800 ${sizeClass}`;
 }
 
 function formatDeviceSpecs(device: Device) {

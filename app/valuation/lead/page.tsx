@@ -5,15 +5,11 @@ import { useRouter } from "next/navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { MockRequestService } from "@/adapters/mock/request";
 import { contactErrors, normalizeSellerContact } from "@/lib/seller-contact";
-import { MockValuationService } from "@/adapters/mock/valuation";
-import { assessmentComplete, isCurrentAssessment } from "@/lib/assessment";
 import { AppShell } from "@/components/app-shell";
-import { hasCompletedAssessment, hasRequestPrerequisites, markRequestSubmitted, type StoredValuationSession } from "@/lib/valuation-session";
+import { hasCompletedAssessment, hasPreliminaryValuation, hasRequestPrerequisites, hasReachedStage, markRequestSubmitted, type StoredValuationSession } from "@/lib/valuation-session";
 import type { RequestService } from "@/services/request-service";
-import type { MockValuationResult } from "@/services/valuation-service";
 
 const requestService: RequestService = new MockRequestService();
-const valuationService = new MockValuationService();
 const analyticsService = new MockAnalyticsService();
 const noSessionSubscription = () => () => undefined;
 const inputClass = "mt-2 min-h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[var(--color-brand-primary)] focus:ring-2 focus:ring-[var(--color-brand-primary-glow)] aria-invalid:border-rose-400";
@@ -35,9 +31,6 @@ export default function LeadPage() {
   const router = useRouter();
   const raw = useSyncExternalStore(noSessionSubscription, getStoredSessionRaw, () => null);
   const storedSession = useMemo(() => parseStoredSession(raw), [raw]);
-  const [mockResult, setMockResult] = useState<MockValuationResult | null>(null);
-  const [contextError, setContextError] = useState(false);
-  const [incompleteCondition, setIncompleteCondition] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [lineId, setLineId] = useState("");
@@ -55,27 +48,7 @@ export default function LeadPage() {
   const hasDevice = Boolean(storedSession?.device && storedSession?.session?.deviceId);
   const hasCondition = hasCompletedAssessment(storedSession);
   const hasPrerequisites = hasRequestPrerequisites(storedSession);
-
-  useEffect(() => {
-    if (!storedSession || !hasPrerequisites) return;
-    let active = true;
-
-    void Promise.all([
-      valuationService.getMockValuationResult(storedSession.session),
-      valuationService.getDeviceAssessment(storedSession.device),
-    ]).then(([result, definition]) => {
-      if (!active) return;
-      const assessment = storedSession.session.assessment;
-      const complete = isCurrentAssessment(assessment, definition) &&
-        assessmentComplete(definition, storedSession.device, assessment.answers);
-      setIncompleteCondition(!complete);
-      setMockResult(complete ? result : null);
-    }).catch(() => {
-      if (active) setContextError(true);
-    });
-
-    return () => { active = false; };
-  }, [hasPrerequisites, storedSession]);
+  const mockResult = hasPrerequisites ? storedSession?.session.preliminaryValuation ?? null : null;
 
   const contact = normalizeSellerContact({ fullName, phone, lineIdProvided: lineId, consentToContact: consent });
   const { name: nameError, phone: phoneError, consent: consentError } = contactErrors(contact);
@@ -97,7 +70,7 @@ export default function LeadPage() {
       (nameError ? nameRef : phoneError ? phoneRef : consentRef).current?.focus();
       return;
     }
-    if (!storedSession || !hasPrerequisites || !mockResult || incompleteCondition) return;
+    if (!storedSession || !hasPrerequisites || !mockResult) return;
 
     submittingRef.current = true;
     setIsSubmitting(true);
@@ -109,6 +82,7 @@ export default function LeadPage() {
           assessment: storedSession.session.assessment!,
           expectedPrice: storedSession.session.expectedPrice!,
           preliminaryValuation: mockResult,
+          transactionIntent: storedSession.session.transactionIntent!,
         },
         contact,
         source: "atlast_web",
@@ -133,9 +107,15 @@ export default function LeadPage() {
   };
 
   const recoveryRoute = !hasDevice ? "/valuation/device"
-    : !hasCondition || incompleteCondition ? "/valuation/condition" : "/valuation/expected-price";
+    : !hasCondition ? "/valuation/condition"
+      : !hasPreliminaryValuation(storedSession) ? "/valuation/result"
+        : !hasReachedStage(storedSession?.session.status, "expected_price_entered") ? "/valuation/expected-price"
+          : "/valuation/transaction-intent";
   const recoveryLabel = !hasDevice ? "เลือกสินค้า"
-    : !hasCondition || incompleteCondition ? "ตอบคำถามสภาพ" : "ระบุราคาที่ต้องการ";
+    : !hasCondition ? "ตอบคำถามสภาพ"
+      : !hasPreliminaryValuation(storedSession) ? "ดูผลประเมิน"
+        : !hasReachedStage(storedSession?.session.status, "expected_price_entered") ? "ระบุราคาที่ต้องการ"
+          : "เลือกรูปแบบการทำรายการ";
 
   return (
     <AppShell
@@ -143,35 +123,26 @@ export default function LeadPage() {
       description="กรอกข้อมูลติดต่อก่อนส่งคำขอประเมินสินค้า แล้วจึงเชื่อมต่อ LINE ในขั้นตอนถัดไป"
       compactHeader
       backAction={
-        <button type="button" onClick={() => router.push("/valuation/result")} disabled={isSubmitting}
+        <button type="button" onClick={() => router.push("/valuation/transaction-intent")} disabled={isSubmitting}
           aria-label="ย้อนกลับ" className={`rounded-full p-1 text-xl text-slate-700 hover:bg-slate-100 disabled:opacity-50 ${focusClass}`}>
           ←
         </button>
       }
     >
       <div className="mx-auto max-w-[820px]">
-        {!hasPrerequisites || incompleteCondition ? (
+        {!hasPrerequisites ? (
           <div className="rounded-3xl bg-white px-5 py-10 text-center">
             <h2 className="text-xl font-semibold text-slate-900">ยังไม่มีข้อมูลครบสำหรับติดต่อกลับ</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">ทำตามขั้นตอนสินค้า สภาพ และราคาที่ต้องการให้ครบก่อนกรอกข้อมูลติดต่อ</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">ทำตามขั้นตอนสินค้า สภาพ ราคา และรูปแบบการทำรายการให้ครบก่อนกรอกข้อมูลติดต่อ</p>
             <button type="button" onClick={() => router.push(recoveryRoute)}
               className={`mt-6 rounded-full bg-[var(--color-action-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--color-action-primary-hover)] ${focusClass}`}>
               {recoveryLabel}
-            </button>
-          </div>
-        ) : contextError ? (
-          <div role="alert" className="py-10 text-center">
-            <p className="text-sm text-slate-600">ยังโหลดข้อมูลการประเมินไม่ได้ กรุณากลับไปที่ผลประเมินแล้วลองอีกครั้ง</p>
-            <button type="button" onClick={() => router.push("/valuation/result")}
-              className={`mt-4 rounded-full px-5 py-3 font-medium text-[var(--color-brand-primary-hover)] ${focusClass}`}>
-              กลับไปที่ผลประเมิน
             </button>
           </div>
         ) : !mockResult || !storedSession ? (
           <p role="status" className="py-10 text-center text-sm text-slate-500">กำลังเตรียมข้อมูลการประเมิน...</p>
         ) : (
           <>
-            {storedSession.session.status === "lead_collected" || storedSession.session.status === "handoff_ready" ? <p role="status" className="mb-4 rounded-xl bg-amber-50 p-4 text-sm leading-6 text-amber-900">สถานะเดิมยังไม่ใช่คำขอในต้นแบบฉบับนี้ กรุณากรอกข้อมูลติดต่อและส่งคำขอใหม่ ข้อมูลสินค้า สภาพ และราคายังอยู่</p> : null}
             <p className="mb-4 text-sm leading-6 text-slate-600">นี่คือต้นแบบการส่งคำขอ ยังไม่ส่งข้อมูลให้เจ้าหน้าที่หรือบันทึกบนเซิร์ฟเวอร์ ข้อมูลติดต่อใช้เฉพาะการทดลองครั้งนี้และไม่เก็บในเบราว์เซอร์หลังส่ง</p>
             <p className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-500">
               <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-brand-primary-soft)] text-[var(--color-brand-primary-hover)]">✓</span>

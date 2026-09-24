@@ -1,12 +1,8 @@
 import type { AssessmentDefinition } from "@/domain/assessment";
 import type { CatalogDevice } from "@/domain/device-catalog";
-import type { ConditionQuestion, CurrencyCode, Device, EstimatedPrice, ValuationSession } from "@/domain/types";
+import type { ConditionQuestion, Device, EstimatedPrice, PreliminaryValuation, ValuationSession } from "@/domain/types";
 
-export interface MockValuationResult {
-  minPrice: number;
-  maxPrice: number;
-  currency: CurrencyCode;
-}
+export type MockValuationResult = PreliminaryValuation;
 
 export interface ValuationService {
   getDeviceCatalog(): Promise<CatalogDevice[]>;
