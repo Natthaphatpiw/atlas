@@ -2,6 +2,8 @@
 
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
+import { HugeiconsIcon } from "@hugeicons/react";
+import { XIcon } from "@hugeicons/core-free-icons";
 
 const steps = [
   {
@@ -87,7 +89,7 @@ export function HowItWorksModal({
   const modalContent = isOpen
     ? createPortal(
         <div
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-[rgba(9,16,15,0.56)] px-4 py-6 backdrop-blur-[2px]"
+          className="fixed inset-0 z-[1000] flex items-center justify-center bg-[rgba(9,16,15,0.5)] px-4 py-6 backdrop-blur-[2px]"
           onClick={() => setIsOpen(false)}
           role="presentation"
         >
@@ -120,7 +122,7 @@ export function HowItWorksModal({
                   className="atlas-interactive atlas-focus flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[var(--color-border-strong)] bg-white text-lg text-[var(--color-foreground)]"
                   aria-label="ปิดวิธีใช้"
                 >
-                  ×
+                  <HugeiconsIcon icon={XIcon} size={19} strokeWidth={1.8} aria-hidden="true" />
                 </button>
               </div>
 

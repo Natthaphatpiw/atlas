@@ -84,10 +84,12 @@ export default function ExpectedPricePage() {
       title="ราคาที่ต้องการ"
       description="บอกเราว่าคุณต้องการขายสินค้านี้ในราคาเท่าไหร่"
       compactHeader
+      contentSize="financial"
       flowStage="price"
-      backAction={<span className="hidden" aria-hidden="true" />}
+      refined
+      showHeaderBack={false}
     >
-      <div className="mx-auto max-w-[820px]">
+      <div className="mx-auto max-w-[920px]">
         {!storedSession ? (
           <MissingContext
             title="ยังไม่มีสินค้าที่เลือก"
@@ -104,12 +106,12 @@ export default function ExpectedPricePage() {
           />
         ) : (
           <>
-            <div className="mb-6 rounded-xl bg-[var(--color-surface-subtle)] px-4 py-2.5">
+            <div className="atlas-flow-panel-muted atlas-reveal mb-4 px-5 py-4">
               <p className="text-base font-semibold text-slate-900">{storedSession.device.model}</p>
               <p className="mt-0.5 text-sm text-slate-600">{formatDeviceSpecs(storedSession.device)}</p>
             </div>
 
-            <div className="mb-6 rounded-2xl border border-[var(--color-border-soft)] bg-white px-4 py-4">
+            <div className="atlas-flow-panel atlas-reveal atlas-reveal-delay-1 mb-8 px-5 py-5">
               <p className="text-sm text-slate-500">ราคาประเมินเบื้องต้นจาก Atlas</p>
               <p className="mt-1 text-xl font-semibold text-slate-900">
                 ฿{storedSession.session.preliminaryValuation!.minPrice.toLocaleString("en-US")} – ฿{storedSession.session.preliminaryValuation!.maxPrice.toLocaleString("en-US")}
@@ -117,13 +119,13 @@ export default function ExpectedPricePage() {
               <p className="mt-2 text-xs leading-5 text-slate-500">ใช้เป็นข้อมูลประกอบการตัดสินใจ ราคาที่คุณระบุจะไม่เปลี่ยนผลประเมินเบื้องต้นนี้</p>
             </div>
 
-            <section>
+            <section className="atlas-reveal atlas-reveal-delay-2 w-full">
               <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">คุณต้องการขายในราคาเท่าไหร่?</h2>
               <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">ระบุราคาที่คุณต้องการอย่างอิสระ โดย Atlas จะไม่ปรับราคาให้อัตโนมัติ</p>
 
               <label htmlFor="expected-price" className="mt-7 block">
                 <span className="sr-only">ราคาที่ต้องการขาย เป็นเงินบาท</span>
-                <span className="flex items-center rounded-3xl border border-slate-200 bg-white px-5 py-4 shadow-[0_8px_24px_rgba(10,26,22,0.04)] transition focus-within:border-[var(--color-brand-primary)] focus-within:ring-2 focus-within:ring-[var(--color-brand-primary-glow)]">
+                <span className="atlas-flow-panel flex items-center px-5 py-5 transition focus-within:border-[var(--color-focus)] focus-within:ring-2 focus-within:ring-[var(--color-focus-ring)] sm:px-7 sm:py-6">
                   <span className="mr-3 text-2xl font-semibold text-[var(--color-action-primary)]" aria-hidden="true">
                     ฿
                   </span>

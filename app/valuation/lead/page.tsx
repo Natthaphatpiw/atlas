@@ -123,10 +123,12 @@ export default function LeadPage() {
       title="ข้อมูลติดต่อผู้ขาย"
       description="กรอกข้อมูลติดต่อก่อนส่งคำขอประเมินสินค้า แล้วจึงเชื่อมต่อ LINE ในขั้นตอนถัดไป"
       compactHeader
+      contentSize="financial"
       flowStage="contact"
-      backAction={<span className="hidden" aria-hidden="true" />}
+      refined
+      showHeaderBack={false}
     >
-      <div className="mx-auto max-w-[820px]">
+      <div className="mx-auto max-w-[920px]">
         {!hasPrerequisites ? (
           <div className="rounded-3xl bg-white px-5 py-10 text-center">
             <h2 className="text-xl font-semibold text-slate-900">ยังไม่มีข้อมูลครบสำหรับติดต่อกลับ</h2>
@@ -137,12 +139,12 @@ export default function LeadPage() {
           <p role="status" className="py-10 text-center text-sm text-slate-500">กำลังเตรียมข้อมูลการประเมิน...</p>
         ) : (
           <>
-            <p className="mb-4 text-sm leading-6 text-slate-600">นี่คือต้นแบบการส่งคำขอ ยังไม่ส่งข้อมูลให้เจ้าหน้าที่หรือบันทึกบนเซิร์ฟเวอร์ ข้อมูลติดต่อใช้เฉพาะการทดลองครั้งนี้และไม่เก็บในเบราว์เซอร์หลังส่ง</p>
-            <p className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-500">
+            <p className="atlas-reveal mb-4 text-sm leading-6 text-slate-600">นี่คือต้นแบบการส่งคำขอ ยังไม่ส่งข้อมูลให้เจ้าหน้าที่หรือบันทึกบนเซิร์ฟเวอร์ ข้อมูลติดต่อใช้เฉพาะการทดลองครั้งนี้และไม่เก็บในเบราว์เซอร์หลังส่ง</p>
+            <p className="atlas-reveal mb-2 flex items-center gap-2 text-xs font-medium text-slate-500">
               <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-brand-primary-soft)] text-[var(--color-action-primary)]">✓</span>
               ประเมินเบื้องต้นเรียบร้อยแล้ว
             </p>
-            <section aria-label="สรุปการประเมิน" className="mb-6 rounded-xl bg-[var(--color-surface-subtle)] px-3 py-2.5 sm:flex sm:items-center sm:justify-between sm:gap-6">
+            <section aria-label="สรุปการประเมิน" className="atlas-flow-panel-muted atlas-reveal atlas-reveal-delay-1 mb-8 px-5 py-4 sm:flex sm:items-center sm:justify-between sm:gap-6">
               <div className="min-w-0">
                 <p className="break-words text-sm font-medium text-slate-700">{storedSession.device.model}</p>
                 <p className="mt-0.5 break-words text-xs leading-5 text-slate-500">
@@ -157,7 +159,7 @@ export default function LeadPage() {
               </div>
             </section>
 
-            <form noValidate onSubmit={handleSubmit} aria-busy={isSubmitting} className="mx-auto w-full max-w-[640px]">
+            <form noValidate onSubmit={handleSubmit} aria-busy={isSubmitting} className="atlas-reveal atlas-reveal-delay-2 mx-auto w-full max-w-[680px]">
               <fieldset disabled={isSubmitting} className="min-w-0 space-y-5">
                 <legend className="sr-only">ข้อมูลติดต่อกลับ</legend>
                 <div>
@@ -190,7 +192,7 @@ export default function LeadPage() {
                       onChange={(event) => { setConsent(event.target.checked); setTouched((current) => ({ ...current, consent: true })); }}
                       aria-invalid={showConsentError} aria-describedby={showConsentError ? "lead-consent-error" : undefined}
                       className="peer sr-only" />
-                    <span aria-hidden="true" className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[0.35rem] border border-[var(--color-border-strong)] bg-white text-white peer-checked:border-[var(--color-action-primary)] peer-checked:bg-[var(--color-brand-primary)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--color-focus)] peer-focus-visible:ring-4 peer-focus-visible:ring-[var(--color-focus-ring)]">
+                    <span aria-hidden="true" className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[0.35rem] border border-[var(--color-border-strong)] bg-white text-white peer-checked:border-[var(--color-action-primary)] peer-checked:bg-[var(--color-action-primary)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--color-focus)] peer-focus-visible:ring-4 peer-focus-visible:ring-[var(--color-focus-ring)]">
                       <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5"><path d="M3 8.25L6.25 11.25L13 4.75" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>
                     </span>
                     <span>ยินยอมให้ Atlas ติดต่อกลับเกี่ยวกับการประเมินสินค้านี้</span>

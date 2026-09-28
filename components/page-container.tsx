@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-type ContainerSize = "shell" | "flow" | "form" | "financial";
+export type ContainerSize = "shell" | "flow" | "form" | "financial";
 
 const sizeClasses: Record<ContainerSize, string> = {
   shell: "max-w-[var(--layout-shell)]",
