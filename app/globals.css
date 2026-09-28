@@ -319,6 +319,24 @@ button:not(:disabled),
   transition: width var(--motion-standard) var(--motion-ease);
 }
 
+/* Indeterminate: the estimate reports no percentage, only that it is working. */
+.atlas-estimate-progress {
+  animation: atlas-estimate-sweep 1.6s var(--motion-ease) infinite;
+}
+
+@keyframes atlas-estimate-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-estimate-progress {
+    animation: none !important;
+    width: 100%;
+    opacity: 0.55;
+  }
+}
+
 .atlas-numeric {
   font-variant-numeric: tabular-nums;
 }

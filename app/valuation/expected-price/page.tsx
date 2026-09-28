@@ -6,8 +6,8 @@ import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { AppShell } from "@/components/app-shell";
 import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
 import { Button } from "@/components/ui-primitives";
-import type { Device } from "@/domain/types";
 import { hasPreliminaryValuation, updateExpectedPrice, type StoredValuationSession } from "@/lib/valuation-session";
+import { formatDeviceSpecs, formatValuation } from "@/lib/valuation-format";
 
 const storageKey = "atlast.valuation.session";
 const analyticsService = new MockAnalyticsService();
@@ -112,9 +112,9 @@ export default function ExpectedPricePage() {
             </div>
 
             <div className="atlas-flow-panel atlas-reveal atlas-reveal-delay-1 mb-8 px-5 py-5">
-              <p className="text-sm text-slate-500">ราคาประเมินเบื้องต้นจาก Atlas</p>
+              <p className="text-sm text-slate-500">ราคาประเมินเบื้องต้นจาก {storedSession.session.preliminaryValuation?.source === "astly" ? "Astly" : "Atlas"}</p>
               <p className="mt-1 text-xl font-semibold text-slate-900">
-                ฿{storedSession.session.preliminaryValuation!.minPrice.toLocaleString("en-US")} – ฿{storedSession.session.preliminaryValuation!.maxPrice.toLocaleString("en-US")}
+                {formatValuation(storedSession.session.preliminaryValuation!)}
               </p>
               <p className="mt-2 text-xs leading-5 text-slate-500">ใช้เป็นข้อมูลประกอบการตัดสินใจ ราคาที่คุณระบุจะไม่เปลี่ยนผลประเมินเบื้องต้นนี้</p>
             </div>
@@ -227,8 +227,4 @@ function getValidationMessage(digits: string, hasInvalidCharacters: boolean) {
   }
 
   return "กรุณาระบุราคามากกว่า 0 บาท";
-}
-
-function formatDeviceSpecs(device: Device) {
-  return Array.from(new Set([device.variant, ...Object.values(device.specs)].filter(Boolean))).join(" · ");
 }

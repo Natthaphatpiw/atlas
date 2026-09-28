@@ -10,6 +10,7 @@ import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
 import { Button } from "@/components/ui-primitives";
 import { hasCompletedAssessment, hasPreliminaryValuation, hasRequestPrerequisites, hasReachedStage, markRequestSubmitted, type StoredValuationSession } from "@/lib/valuation-session";
 import type { RequestService } from "@/services/request-service";
+import { formatDeviceSpecs, formatValuation } from "@/lib/valuation-format";
 
 const requestService: RequestService = new MockRequestService();
 const analyticsService = new MockAnalyticsService();
@@ -82,7 +83,13 @@ export default function LeadPage() {
           device: storedSession.device,
           assessment: storedSession.session.assessment!,
           expectedPrice: storedSession.session.expectedPrice!,
-          preliminaryValuation: mockResult,
+          // The receipt keeps the price only, not Astly's job, breakdown or priced inputs.
+          preliminaryValuation: {
+            minPrice: mockResult.minPrice,
+            maxPrice: mockResult.maxPrice,
+            currency: mockResult.currency,
+            ...(mockResult.source ? { source: mockResult.source } : {}),
+          },
           transactionIntent: storedSession.session.transactionIntent!,
         },
         contact,
@@ -148,13 +155,13 @@ export default function LeadPage() {
               <div className="min-w-0">
                 <p className="break-words text-sm font-medium text-slate-700">{storedSession.device.model}</p>
                 <p className="mt-0.5 break-words text-xs leading-5 text-slate-500">
-                  {Array.from(new Set([storedSession.device.variant, ...Object.values(storedSession.device.specs)].filter(Boolean))).join(" · ")}
+                  {formatDeviceSpecs(storedSession.device)}
                 </p>
               </div>
               <div className="mt-2 shrink-0 sm:mt-0 sm:text-right">
                 <p className="text-xs text-slate-500">ราคาประเมินเบื้องต้น</p>
                 <p className="mt-0.5 text-sm font-medium text-slate-600">
-                  ฿{mockResult.minPrice.toLocaleString("en-US")} – ฿{mockResult.maxPrice.toLocaleString("en-US")}
+                  {formatValuation(mockResult)}
                 </p>
               </div>
             </section>

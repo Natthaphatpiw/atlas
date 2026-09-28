@@ -9,6 +9,7 @@ import { SuccessAnimation } from "@/components/success-animation";
 import { Button } from "@/components/ui-primitives";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { hasCompletedAssessment, hasPreliminaryValuation, hasReachedStage, hasSubmittedRequest, startNewValuation, type StoredValuationSession } from "@/lib/valuation-session";
+import { formatValuation } from "@/lib/valuation-format";
 
 const analytics = new MockAnalyticsService();
 const noSubscription = () => () => undefined;
@@ -86,7 +87,7 @@ export default function ConnectLinePage() {
             <div className="min-w-0"><dt className="text-[var(--color-muted-foreground)]">อุปกรณ์</dt><dd className="mt-1 break-words font-semibold text-[var(--color-foreground)]">{request.context.device.model}</dd><dd className="mt-1 break-words leading-6 text-[var(--color-muted-foreground)]">{deviceSpecs}</dd></div>
             <div><dt className="text-[var(--color-muted-foreground)]">รูปแบบการทำรายการ</dt><dd className="mt-1 font-semibold text-[var(--color-foreground)]">{intent}</dd></div>
             <div><dt className="text-[var(--color-muted-foreground)]">ราคาที่คุณต้องการ</dt><dd className="atlas-numeric mt-1 font-semibold text-[var(--color-foreground)]">{formatPrice(request.context.expectedPrice.amount)}</dd></div>
-            <div><dt className="text-[var(--color-muted-foreground)]">ราคาประเมินเบื้องต้น</dt><dd className="atlas-numeric mt-1 font-semibold text-[var(--color-foreground)]">{formatPrice(request.context.preliminaryValuation.minPrice)} – {formatPrice(request.context.preliminaryValuation.maxPrice)}</dd></div>
+            <div><dt className="text-[var(--color-muted-foreground)]">ราคาประเมินเบื้องต้น</dt><dd className="atlas-numeric mt-1 font-semibold text-[var(--color-foreground)]">{formatValuation(request.context.preliminaryValuation)}</dd></div>
           </dl>
         </section>
         <div className="mt-8 grid gap-3 border-t border-[var(--color-border-soft)] pt-6 sm:grid-cols-2">

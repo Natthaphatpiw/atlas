@@ -1,4 +1,6 @@
 import type { MockRequestReceipt, RequestReceiptContext } from "@/domain/valuation-request";
+import type { AstlyValuation, EstimateJobAccepted } from "@/domain/astly";
+import { toAstlyConditionChecks, toAstlyEstimateInput } from "@/lib/astly-estimate-input";
 import { getMockAssessment } from "@/adapters/mock/assessment";
 import type { AssessmentAnswer, AssessmentDefinition } from "@/domain/assessment";
 import { answerIdentity, assessmentComplete, isCurrentAssessment, pruneAnswers } from "@/lib/assessment";
@@ -118,7 +120,10 @@ export function saveAssessmentAnswers(definition: AssessmentDefinition, answers:
     },
   };
   if (!unchanged) {
-    delete updated.session.preliminaryValuation;
+    // An Astly valuation or job survives edits that do not change what Astly prices.
+    const pricedKey = estimateRequestKey(updated);
+    if (updated.session.preliminaryValuation?.astly?.requestKey !== pricedKey) delete updated.session.preliminaryValuation;
+    if (updated.session.estimateJob?.requestKey !== pricedKey) delete updated.session.estimateJob;
     delete updated.session.expectedPrice;
     delete updated.session.transactionIntent;
     delete updated.session.estimatedPrice;
@@ -137,7 +142,8 @@ export function markPreliminaryValuationAvailable(preliminaryValuation: Prelimin
 
   const existing = stored.session.preliminaryValuation;
   if (existing?.currency === preliminaryValuation.currency && existing.minPrice === preliminaryValuation.minPrice &&
-      existing.maxPrice === preliminaryValuation.maxPrice &&
+      existing.maxPrice === preliminaryValuation.maxPrice && existing.source === preliminaryValuation.source &&
+      existing.astly?.requestKey === preliminaryValuation.astly?.requestKey &&
       hasReachedStage(stored.session.status, "preliminary_valuation_available")) {
     return stored;
   }
@@ -152,8 +158,67 @@ export function markPreliminaryValuationAvailable(preliminaryValuation: Prelimin
     },
   };
   delete updated.session.transactionIntent;
+  delete updated.session.estimateJob;
   saveValuationSession(updated);
   return updated;
+}
+
+// Astly keeps a job for two hours; resume only well inside that window.
+const ESTIMATE_JOB_RESUME_MS = 90 * 60 * 1000;
+
+/**
+ * Identity of what an Astly estimate prices: exactly the request Astly
+ * receives. Answers Astly never sees (Find My, scratches, repairs...) do not
+ * change it, so editing them keeps the valuation instead of paying again.
+ */
+export function estimateRequestKey(stored: StoredValuationSession): string | null {
+  const assessment = stored.session.assessment;
+  if (!assessment) return null;
+  try {
+    const definition = getMockAssessment(stored.device);
+    return JSON.stringify(toAstlyEstimateInput(stored.device, toAstlyConditionChecks(definition, stored.device, assessment.answers)));
+  } catch {
+    return null;
+  }
+}
+
+/** The Astly valuation on the session, if it still prices the current device and assessment. */
+export function currentAstlyValuation(stored: StoredValuationSession | null | undefined): AstlyValuation | null {
+  const valuation = stored?.session.preliminaryValuation;
+  if (!stored || !hasCompletedAssessment(stored) || valuation?.source !== "astly" || !valuation.astly ||
+      valuation.currency !== "THB" || !Number.isFinite(valuation.minPrice) || valuation.minPrice !== valuation.maxPrice) return null;
+  return valuation.astly.requestKey === estimateRequestKey(stored) ? valuation.astly : null;
+}
+
+export function currentEstimateJob(stored: StoredValuationSession | null | undefined, now = Date.now()) {
+  const job = stored?.session.estimateJob;
+  if (!stored || !job || job.requestKey !== estimateRequestKey(stored)) return null;
+  const age = now - Date.parse(job.startedAt);
+  return Number.isFinite(age) && age >= 0 && age < ESTIMATE_JOB_RESUME_MS ? job : null;
+}
+
+/** Saves a started job, but only while the session still prices what it was started for. */
+export function saveEstimateJob(job: EstimateJobAccepted, requestKey: string) {
+  const stored = readValuationSession();
+  if (!stored || stored.session.request || !hasCompletedAssessment(stored) || estimateRequestKey(stored) !== requestKey) return null;
+  const updated: StoredValuationSession = {
+    ...stored,
+    session: {
+      ...stored.session,
+      estimateJob: { jobId: job.jobId, ticket: job.ticket, requestKey, condition: job.condition, startedAt: new Date().toISOString() },
+      updatedAt: new Date().toISOString(),
+    },
+  };
+  saveValuationSession(updated);
+  return updated;
+}
+
+export function clearEstimateJob() {
+  const stored = readValuationSession();
+  if (!stored || stored.session.request || !stored.session.estimateJob) return;
+  const updated: StoredValuationSession = { ...stored, session: { ...stored.session, updatedAt: new Date().toISOString() } };
+  delete updated.session.estimateJob;
+  saveValuationSession(updated);
 }
 
 export function hasPreliminaryValuation(stored: StoredValuationSession | null | undefined) {

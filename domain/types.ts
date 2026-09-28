@@ -1,5 +1,6 @@
 import type { MockRequestReceipt } from "./valuation-request";
 import type { SellerAssessment } from "./assessment";
+import type { AstlyValuation, PendingEstimateJob } from "./astly";
 
 export type CurrencyCode = "THB";
 
@@ -85,6 +86,9 @@ export interface PreliminaryValuation {
   minPrice: number;
   maxPrice: number;
   currency: CurrencyCode;
+  /** Set when the valuation came from Astly's estimate API rather than a fixture. */
+  source?: "astly";
+  astly?: AstlyValuation;
 }
 
 export interface EstimatedPrice {
@@ -111,6 +115,8 @@ export interface ValuationSession {
   assessment?: SellerAssessment;
   request?: MockRequestReceipt;
   preliminaryValuation?: PreliminaryValuation;
+  /** Astly job started for the current configuration, awaiting its result. */
+  estimateJob?: PendingEstimateJob;
   expectedPrice?: ExpectedPrice;
   transactionIntent?: TransactionIntent;
   estimatedPrice?: EstimatedPrice;
