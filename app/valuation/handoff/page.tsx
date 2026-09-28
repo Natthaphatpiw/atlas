@@ -2,12 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { CheckmarkCircle04Icon, Message01Icon } from "@hugeicons/core-free-icons";
+import { Message01Icon } from "@hugeicons/core-free-icons";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { SuccessAnimation } from "@/components/success-animation";
 import { Button } from "@/components/ui-primitives";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
-import { hasCompletedAssessment, hasPreliminaryValuation, hasReachedStage, hasSubmittedRequest, type StoredValuationSession } from "@/lib/valuation-session";
+import { hasCompletedAssessment, hasPreliminaryValuation, hasReachedStage, hasSubmittedRequest, startNewValuation, type StoredValuationSession } from "@/lib/valuation-session";
 
 const analytics = new MockAnalyticsService();
 const noSubscription = () => () => undefined;
@@ -47,7 +48,7 @@ export default function ConnectLinePage() {
 
   if (!request) {
     return <AppShell title="สถานะคำขอ" description="ส่งคำขอประเมินก่อน แล้วจึงเลือกช่องทางติดตาม" compactHeader backAction={<span className="hidden" aria-hidden="true" />}>
-      <section className="mx-auto max-w-[42rem] rounded-[var(--radius-feature)] border border-[var(--color-border-strong)] bg-white p-6 shadow-[var(--shadow-surface)] sm:p-8">
+      <section className="atlas-reveal atlas-reveal-delay-1 mx-auto max-w-[42rem] rounded-[var(--radius-feature)] border border-[var(--color-border-strong)] bg-white p-6 shadow-[var(--shadow-surface)] sm:p-8">
         <h2 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-[-0.05em] text-[var(--color-foreground)]">ยังไม่มีคำขอที่ส่งแล้ว</h2>
         <p className="mt-3 text-sm leading-7 text-[var(--color-muted-foreground)]">ส่งคำขอประเมินสินค้าก่อนเพื่อรับเลขอ้างอิง แล้วจึงเลือกติดตามการอัปเดตผ่าน LINE ได้</p>
         {stored?.session?.request ? <p role="alert" className="mt-4 rounded-[var(--radius-control)] border border-[var(--color-border-strong)] bg-[var(--color-surface-subtle)] px-4 py-3 text-sm leading-6 text-[var(--color-muted-foreground)]">ไม่สามารถอ่านคำขอที่เก็บไว้ได้ กรุณาเริ่มการทดลองในเซสชันเบราว์เซอร์ใหม่</p>
@@ -59,16 +60,16 @@ export default function ConnectLinePage() {
   const deviceSpecs = Object.values(request.context.device.specs).filter(Boolean).join(" · ");
   const intent = request.context.transactionIntent === "outright_sale" ? "ขายขาด" : "ขายฝาก";
 
-  return <AppShell title="คำขอประเมินของคุณ" description="คำขอถูกบันทึกแล้ว คุณไม่ต้องกรอกหรือส่งซ้ำ" compactHeader backAction={<span className="hidden" aria-hidden="true" />}>
+  return <AppShell title="คำขอประเมินของคุณ" description="คำขอถูกบันทึกแล้ว คุณไม่ต้องกรอกหรือส่งซ้ำ" compactHeader contentSize="financial" refined showHeaderBack={false} stickyHeader>
     <div className="mx-auto max-w-[var(--layout-financial)]">
-      <section className="rounded-[var(--radius-feature)] border border-[var(--color-border-strong)] bg-white p-6 shadow-[var(--shadow-surface)] sm:p-8 lg:p-10">
-        <div className="max-w-2xl">
-          <div className="flex h-12 w-12 items-center justify-center rounded-[var(--radius-control)] border border-[var(--color-border-strong)] bg-[var(--color-brand-primary-soft)] text-[var(--color-action-primary)] shadow-[var(--shadow-tactile-sm)]">
-            <HugeiconsIcon icon={CheckmarkCircle04Icon} size={27} strokeWidth={1.8} aria-hidden="true" />
+      <section className="atlas-flow-panel atlas-reveal atlas-reveal-delay-1 p-6 pt-0 sm:p-8 lg:p-10 lg:pt-0 sm:pt-0">
+        <div className="mx-auto max-w-2xl text-center">
+          <div className="atlas-question-enter mx-auto flex justify-center">
+            <SuccessAnimation />
           </div>
-          <p className="mt-6 text-sm font-semibold text-[var(--color-action-primary)]">Atlas · คำขอประเมิน</p>
+          <p className="text-sm font-semibold text-[var(--color-action-primary)]">Atlas · คำขอประเมิน</p>
           <h2 ref={heading} tabIndex={-1} className="mt-2 text-3xl font-semibold tracking-[-0.06em] text-[var(--color-foreground)] sm:text-4xl">ส่งคำขอประเมินเรียบร้อยแล้ว</h2>
-          <p className="mt-4 max-w-xl text-base leading-7 text-[var(--color-muted-foreground)]">เราได้บันทึกข้อมูลอุปกรณ์ สภาพ และราคาที่คุณต้องการไว้ในคำขอนี้แล้ว ขั้นตอนถัดไปคือเลือกช่องทางรับการอัปเดต</p>
+          <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-[var(--color-muted-foreground)]">เราได้บันทึกข้อมูลอุปกรณ์ สภาพ และราคาที่คุณต้องการไว้ในคำขอนี้แล้ว ขั้นตอนถัดไปคือเลือกช่องทางรับการอัปเดต</p>
         </div>
 
         <section aria-label="เลขอ้างอิงคำขอ" className="mt-8 rounded-[var(--radius-surface)] border border-[var(--color-action-primary)] bg-[var(--color-surface-subtle)] p-5 shadow-[var(--shadow-tactile-sm)] sm:flex sm:items-end sm:justify-between sm:gap-6">
@@ -88,16 +89,20 @@ export default function ConnectLinePage() {
             <div><dt className="text-[var(--color-muted-foreground)]">ราคาประเมินเบื้องต้น</dt><dd className="atlas-numeric mt-1 font-semibold text-[var(--color-foreground)]">{formatPrice(request.context.preliminaryValuation.minPrice)} – {formatPrice(request.context.preliminaryValuation.maxPrice)}</dd></div>
           </dl>
         </section>
+        <div className="mt-8 grid gap-3 border-t border-[var(--color-border-soft)] pt-6 sm:grid-cols-2">
+          <Button onClick={() => { startNewValuation(); router.push("/valuation/device"); }}>ประเมินสินค้าอื่น</Button>
+          <Button tone="secondary" className="!text-[var(--color-action-primary)]" onClick={() => router.push("/")}>กลับหน้าแรก</Button>
+        </div>
       </section>
 
-      <section aria-labelledby="line-heading" className="mt-6 rounded-[var(--radius-feature)] border border-[var(--color-border-strong)] bg-[var(--color-surface-raised)] p-6 shadow-[var(--shadow-tactile-sm)] sm:p-8">
+      <section aria-labelledby="line-heading" className="atlas-flow-panel-muted atlas-reveal atlas-reveal-delay-2 mt-6 p-6 sm:p-8">
         <div className="max-w-2xl">
           <div className="flex items-center gap-3">
             <HugeiconsIcon icon={Message01Icon} size={23} strokeWidth={1.8} className="text-[var(--color-action-primary)]" aria-hidden="true" />
             <h2 id="line-heading" className="text-xl font-semibold tracking-[-0.04em] text-[var(--color-foreground)]">รับการอัปเดตผ่าน LINE</h2>
           </div>
           <p className="mt-3 text-sm leading-7 text-[var(--color-muted-foreground)]">เมื่อเปิดระบบจริง LINE จะเป็นช่องทางติดต่อและติดตามคำขอของคุณได้ การส่งคำขอนี้เสร็จสมบูรณ์แล้วและไม่ต้องเชื่อมต่อ LINE เพื่อส่งคำขอ</p>
-          <Button className="mt-5 w-full sm:w-auto" tone="secondary" aria-describedby="line-prototype" onClick={() => {
+          <Button className="mt-5 w-full sm:w-auto" aria-describedby="line-prototype" onClick={() => {
             setPlaceholder(true);
             if (!started.current) {
               started.current = true;

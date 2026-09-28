@@ -43,7 +43,7 @@ export function ChoiceCard({
       <input type={inputType} disabled={disabled} className="peer sr-only" {...props} />
       <span
         className={joinClasses(
-          "atlas-interactive block min-h-11 rounded-[var(--radius-surface)] border border-[var(--color-border-strong)] bg-white px-4 py-3 text-[var(--color-foreground)] peer-checked:border-[var(--color-action-primary)] peer-checked:bg-[var(--color-brand-primary-soft)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--color-focus)] peer-focus-visible:ring-4 peer-focus-visible:ring-[var(--color-focus-ring)] peer-disabled:border-transparent peer-disabled:bg-[var(--color-disabled-surface)] peer-disabled:text-[var(--color-disabled-foreground)] peer-disabled:shadow-none peer-disabled:transform-none",
+          "atlas-interactive block min-h-11 rounded-[var(--radius-surface)] border border-[var(--color-border-strong)] bg-white px-4 py-3 text-[var(--color-foreground)] peer-checked:border-[var(--color-selected-border)] peer-checked:bg-[var(--color-selected-surface)] peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--color-focus)] peer-focus-visible:ring-4 peer-focus-visible:ring-[var(--color-focus-ring)] peer-disabled:border-transparent peer-disabled:bg-[var(--color-disabled-surface)] peer-disabled:text-[var(--color-disabled-foreground)] peer-disabled:shadow-none peer-disabled:transform-none",
           className,
         )}
       >

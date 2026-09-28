@@ -291,6 +291,14 @@ export function continueWithDevice(device: Device) {
   return next;
 }
 
+// An explicit post-submission action starts a fresh local valuation lifecycle.
+// It intentionally removes only Atlas's current browser-session snapshot.
+export function startNewValuation() {
+  if (typeof window === "undefined") return false;
+  window.sessionStorage.removeItem(storageKey);
+  return true;
+}
+
 
 export function hasRequestPrerequisites(stored: StoredValuationSession | null | undefined) {
   return hasPreliminaryValuation(stored) && stored?.session.deviceId === stored?.device.id &&

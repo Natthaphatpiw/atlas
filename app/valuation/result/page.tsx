@@ -84,10 +84,12 @@ export default function ResultPage() {
       title="ผลประเมินเบื้องต้น"
       description="ประเมินจากข้อมูลสินค้าและสภาพที่คุณระบุ"
       compactHeader
+      contentSize="financial"
       flowStage="price"
-      backAction={<span className="hidden" aria-hidden="true" />}
+      refined
+      showHeaderBack={false}
     >
-      <div className="mx-auto max-w-[820px]">
+      <div className="mx-auto max-w-[980px]">
         {!storedSession ? (
           <MissingContext
             title="ยังไม่มีข้อมูลการประเมิน"
@@ -130,23 +132,20 @@ function ResultContent({
 }) {
   return (
     <>
-      <div className="mb-5 rounded-xl bg-[var(--color-surface-subtle)] px-4 py-2.5">
+      <div className="atlas-flow-panel-muted atlas-reveal mb-4 px-5 py-4">
         <p className="text-base font-semibold text-slate-900">{storedSession.device.model}</p>
         <p className="mt-0.5 text-sm text-slate-600">{formatDeviceSpecs(storedSession.device)}</p>
       </div>
 
-      <section className="border-y border-[var(--color-border-soft)] py-7 text-center sm:py-8">
+      <section className="atlas-flow-panel atlas-reveal atlas-reveal-delay-1 grid items-center gap-6 p-7 text-center sm:grid-cols-[1.2fr_0.8fr] sm:p-10 sm:text-left">
+        <div>
         <p className="text-sm font-medium text-[var(--color-action-primary)]">ราคาประเมินเบื้องต้น</p>
-        <p className="mt-2 text-4xl font-semibold tracking-tight text-slate-900 sm:text-5xl" aria-label={formatPriceRange(mockResult)}>
+        <p className="atlas-numeric mt-2 whitespace-nowrap text-[clamp(2.25rem,11vw,3rem)] font-semibold tracking-[-0.07em] text-[var(--color-foreground)] sm:text-6xl" aria-label={formatPriceRange(mockResult)}>
           {formatPriceRange(mockResult)}
         </p>
-        <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-600">
-          ราคานี้เป็นการประเมินเบื้องต้น<br />
-          ราคาสุดท้ายจะยืนยันหลังตรวจสอบสินค้าจริง
-        </p>
-      </section>
+        </div><p className="mx-auto max-w-md text-sm leading-7 text-[var(--color-muted-foreground)] sm:mx-0">ราคานี้เป็นการประเมินเบื้องต้น ราคาสุดท้ายจะยืนยันหลังตรวจสอบสินค้าจริง</p></section>
 
-      <div className="mt-5"><FlowActions back={<FlowBack onClick={onBack} />} forward={<FlowForward type="button" onClick={onContinue}>ระบุราคาที่ต้องการ</FlowForward>} /></div>
+      <div className="atlas-reveal atlas-reveal-delay-2 mt-5"><FlowActions back={<FlowBack onClick={onBack} />} forward={<FlowForward type="button" onClick={onContinue}>ระบุราคาที่ต้องการ</FlowForward>} /></div>
     </>
   );
 }
