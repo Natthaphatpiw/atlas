@@ -164,7 +164,9 @@ test("applies feature and category-specific questions and requires every visible
   assert.ok(iphoneIds.includes("wireless_charging_works"));
   assert.ok(!iphoneIds.includes("touch_id_works"));
   assert.ok(!assessment.applicableQuestions(definition, iphone, [choice("device_powers_on", "no")]).some((question) => question.id === "face_id_works"));
-  assert.deepEqual(samsungIds, ["device_powers_on", "exterior_condition", "device_functions_normally"]);
+  assert.deepEqual(samsungIds, ["device_powers_on", "severe_physical_or_liquid_damage", "display_glass_condition", "exterior_condition", "battery_degraded"]);
+  const poweredSamsungIds = assessment.applicableQuestions(basic, samsung, [choice("device_powers_on", "yes")]).map((question) => question.id);
+  assert.deepEqual(poweredSamsungIds.filter((id) => !samsungIds.includes(id)), ["display_works", "touchscreen_works", "cameras_work", "buttons_ports_work"]);
   assert.equal(assessment.assessmentComplete(definition, iphone, completeIphoneAnswers()), true);
   assert.equal(assessment.assessmentComplete(definition, iphone, completeIphoneAnswers().slice(1)), false);
   assert.equal(assessment.assessmentComplete(definition, iphone, [...completeIphoneAnswers(), answer("battery_health_percentage", { kind: "number", value: 101 })]), false);
@@ -325,15 +327,25 @@ test("semantic answer identity preserves downstream progress across ordering and
   assert.equal(same.session.transactionIntent, "sell_and_repurchase");
 });
 
-test("basic fallback uses stable machine option IDs for Samsung and MacBook", () => {
+test("basic fallback covers Astly's checklist with stable machine option IDs for Samsung and MacBook", () => {
   for (const device of [samsung, macbook]) {
     const basic = getMockAssessment(device);
-    assert.equal(basic.id, "seller_reported_basic_v1");
-    assert.deepEqual(basic.questions.map((question) => question.id), ["device_powers_on", "exterior_condition", "device_functions_normally"]);
-    assert.deepEqual(basic.questions[0].options.map((option) => option.id), ["yes", "no", "unknown"]);
-    assert.deepEqual(basic.questions[1].options.map((option) => option.id), ["none", "minor", "noticeable", "severe", "unknown"]);
-    assert.deepEqual(basic.questions[2].options.map((option) => option.id), ["yes", "no", "unknown"]);
+    assert.equal(basic.id, "seller_reported_basic_v2");
+    assert.equal(basic.version, 2);
+    assert.deepEqual(basic.questions.map((question) => question.id), [
+      "device_powers_on", "severe_physical_or_liquid_damage", "display_glass_condition", "exterior_condition",
+      "display_works", "touchscreen_works", "cameras_work", "buttons_ports_work", "battery_degraded",
+    ]);
+    const optionIds = (id) => basic.questions.find((question) => question.id === id).options.map((option) => option.id);
+    for (const id of ["device_powers_on", "severe_physical_or_liquid_damage", "display_works", "cameras_work", "battery_degraded"]) {
+      assert.deepEqual(optionIds(id), ["yes", "no", "unknown"], id);
+    }
+    for (const id of ["display_glass_condition", "exterior_condition"]) {
+      assert.deepEqual(optionIds(id), ["none", "minor", "noticeable", "severe", "unknown"], id);
+    }
   }
+  // A laptop has no touchscreen question.
+  assert.ok(!assessment.applicableQuestions(getMockAssessment(macbook), macbook, [choice("device_powers_on", "yes")]).some((question) => question.id === "touchscreen_works"));
 });
 
 test("numeric drafts accept boundaries and never turn malformed text into a saved value", () => {

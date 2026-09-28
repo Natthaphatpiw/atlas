@@ -331,11 +331,18 @@ const iPhoneQuestions: AssessmentQuestion[] = [
   },
 ];
 
+// Covers every item on Astly's seller condition checklist, so non-iPhone
+// devices are priced from the same eight inputs as the Astly LINE estimate.
+const basicFunctionQuestion = (id: string, label: string, applicability?: AssessmentQuestion["applicability"]): AssessmentQuestion => ({
+  ...functionQuestion(id, "basic_function", label),
+  ...(applicability ? { applicability } : {}),
+});
+
 const basicQuestions: AssessmentQuestion[] = [
   {
     id: "device_powers_on",
     sectionId: "basics",
-    groupId: "basic_condition",
+    groupId: "basic_readiness",
     label: "เครื่องเปิดติดหรือไม่?",
     help: sellerReportedHelp,
     type: "yes_no_unknown",
@@ -343,20 +350,44 @@ const basicQuestions: AssessmentQuestion[] = [
     options: yesNoUnknown,
   },
   {
-    id: "exterior_condition",
+    id: "severe_physical_or_liquid_damage",
     sectionId: "basics",
-    groupId: "basic_condition",
-    label: "สภาพภายนอกมีความเสียหายระดับใด?",
+    groupId: "basic_readiness",
+    label: "มีความเสียหายรุนแรงหรือร่องรอยโดนน้ำ/ของเหลวหรือไม่?",
+    help: sellerReportedHelp,
+    type: "yes_no_unknown",
+    required: true,
+    options: yesNoUnknown,
+  },
+  {
+    id: "display_glass_condition",
+    sectionId: "physical",
+    groupId: "basic_physical",
+    label: "กระจกหน้าจอมีรอยแตกหรือบิ่นระดับใด?",
     help: sellerReportedHelp,
     type: "single",
     required: true,
     options: severityOptions,
   },
   {
-    id: "device_functions_normally",
-    sectionId: "basics",
-    groupId: "basic_condition",
-    label: "โดยรวมเครื่องใช้งานได้ตามปกติหรือไม่?",
+    id: "exterior_condition",
+    sectionId: "physical",
+    groupId: "basic_physical",
+    label: "ตัวเครื่องหรือฝาหลังมีรอยบุบ แตก หรือเสียหายระดับใด?",
+    help: sellerReportedHelp,
+    type: "single",
+    required: true,
+    options: severityOptions,
+  },
+  basicFunctionQuestion("display_works", "หน้าจอแสดงผลปกติ ไม่มีเส้นหรือจุดเสียใช่หรือไม่?"),
+  basicFunctionQuestion("touchscreen_works", "หน้าจอสัมผัสได้ปกติหรือไม่?", { categories: ["phone", "tablet"] }),
+  basicFunctionQuestion("cameras_work", "กล้องใช้งานได้ปกติหรือไม่?"),
+  basicFunctionQuestion("buttons_ports_work", "ปุ่มกด พอร์ต และการชาร์จใช้งานได้ปกติหรือไม่?"),
+  {
+    id: "battery_degraded",
+    sectionId: "battery",
+    groupId: "basic_battery",
+    label: "แบตเตอรี่เสื่อม บวม หมดเร็ว หรือมีคำเตือนสุขภาพแบตเตอรี่หรือไม่?",
     help: sellerReportedHelp,
     type: "yes_no_unknown",
     required: true,
@@ -388,11 +419,16 @@ export function getMockAssessment(device: Device): AssessmentDefinition {
   }
 
   return {
-    id: "seller_reported_basic_v1",
-    version: 1,
+    id: "seller_reported_basic_v2",
+    version: 2,
     coverage: "basic",
     features: [],
-    sections: [{ id: "basics", label: "ภาพรวมเครื่อง" }],
+    sections: [
+      { id: "basics", label: "ภาพรวมเครื่อง" },
+      { id: "physical", label: "สภาพภายนอก" },
+      { id: "functionality", label: "การทำงาน" },
+      { id: "battery", label: "แบตเตอรี่" },
+    ],
     questions: basicQuestions,
   };
 }
