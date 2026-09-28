@@ -24,7 +24,6 @@ export function DeviceAssessment({ initial, definition }: { initial: StoredValua
   const [editing, setEditing] = useState(false);
   const [showErrors, setShowErrors] = useState(false);
   const [saveError, setSaveError] = useState(false);
-  const [assessmentRevealStarted, setAssessmentRevealStarted] = useState(false);
   const [pendingScrollFromQuestionId, setPendingScrollFromQuestionId] = useState<string | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const form = useRef<HTMLFormElement>(null);
@@ -191,9 +190,7 @@ export function DeviceAssessment({ initial, definition }: { initial: StoredValua
             </div>
           </section>
         ) : (
-          <form ref={form} onSubmit={continueGroup} noValidate className="atlas-reveal atlas-reveal-delay-2" onAnimationStart={(event) => {
-            if (event.currentTarget === event.target) setAssessmentRevealStarted(true);
-          }}>
+          <form ref={form} onSubmit={continueGroup} noValidate className="atlas-reveal atlas-reveal-delay-2">
             <div className="atlas-flow-panel-muted p-5 sm:p-6" role="status">
               <div className="h-2 overflow-hidden rounded-full atlas-progress-track"><div className="atlas-progress-fill h-full rounded-full" style={{ width: `${progress.percentage}%` }} /></div>
               <p className="mt-3 text-xs font-semibold text-[var(--color-action-primary)]">ส่วนที่ {sectionIndex + 1} จาก {definition.sections.length} · กลุ่มคำถาม {progress.groupIndex + 1} จาก {groupIds.length} ที่เกี่ยวข้อง</p>
@@ -201,7 +198,7 @@ export function DeviceAssessment({ initial, definition }: { initial: StoredValua
             <h2 ref={heading} tabIndex={-1} className={`mt-7 text-3xl font-semibold tracking-[-0.05em] text-[var(--color-foreground)] ${focus}`}>{definition.sections[sectionIndex]?.label}</h2>
             <p className="mt-2 text-sm text-[var(--color-muted-foreground)]">คำถามถัดไปปรับตามคำตอบของคุณ เลือก “ไม่ทราบ” ได้เมื่อไม่แน่ใจ</p>
             <div className="my-7 space-y-7">
-              {group.map((question) => <AssessmentField key={question.id} question={question} value={answers.find((answer) => answer.questionId === question.id)?.value} showErrors={showErrors} revealEnabled={assessmentRevealStarted} onChange={(value, scrollAfterChange) => changeAnswer(question, value, scrollAfterChange)} onCommit={() => setPendingScrollFromQuestionId(question.id)} />)}
+              {group.map((question) => <AssessmentField key={question.id} question={question} value={answers.find((answer) => answer.questionId === question.id)?.value} showErrors={showErrors} onChange={(value, scrollAfterChange) => changeAnswer(question, value, scrollAfterChange)} onCommit={() => setPendingScrollFromQuestionId(question.id)} />)}
             </div>
             <div id="condition-actions" className="atlas-assessment-scroll-target mt-6 border-t border-[var(--color-border-soft)] pt-5 sm:mt-8 sm:pt-6">
               <FlowActions back={<FlowBack onClick={back} />} forward={<FlowForward type="submit">{editing ? "บันทึกและกลับไปตรวจสอบ" : "ดำเนินการต่อ"}</FlowForward>} />
@@ -213,9 +210,8 @@ export function DeviceAssessment({ initial, definition }: { initial: StoredValua
   );
 }
 
-function AssessmentField({ question, value, showErrors, revealEnabled, onChange, onCommit }: {
+function AssessmentField({ question, value, showErrors, onChange, onCommit }: {
   question: AssessmentQuestion; value?: AssessmentValue; showErrors: boolean;
-  revealEnabled: boolean;
   onChange: (value: AssessmentValue | undefined, scrollAfterChange?: boolean) => void;
   onCommit: () => void;
 }) {
@@ -233,7 +229,7 @@ function AssessmentField({ question, value, showErrors, revealEnabled, onChange,
   const choiceColumns = "options" in question && question.options.length === 3 ? "sm:grid-cols-3" : "sm:grid-cols-2";
 
   useEffect(() => {
-    if (!revealEnabled) return;
+    if (entered) return;
     const target = fieldset.current;
     if (!target) return;
     const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -242,16 +238,36 @@ function AssessmentField({ question, value, showErrors, revealEnabled, onChange,
       const frame = window.requestAnimationFrame(() => setEntered(true));
       return () => window.cancelAnimationFrame(frame);
     }
+    const revealZoneBottom = window.innerHeight * (compactViewport ? 0.6 : 0.82);
+    const revealIfUnreachable = () => {
+      const bounds = target.getBoundingClientRect();
+      const remainingScroll = Math.max(0, document.documentElement.scrollHeight - document.documentElement.clientHeight - window.scrollY);
+      const requiredOverlap = bounds.height * 0.08;
+      // Reveal when even the lowest reachable position cannot meet the observer threshold.
+      const requiredScroll = bounds.top - revealZoneBottom + requiredOverlap;
+      if (requiredOverlap > revealZoneBottom || requiredScroll > remainingScroll - 1) {
+        setEntered(true);
+      }
+    };
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry.isIntersecting) return;
       setEntered(true);
       observer.disconnect();
     }, { threshold: 0.08, rootMargin: compactViewport ? "0px 0px -40% 0px" : "0px 0px -18% 0px" });
     observer.observe(target);
-    return () => observer.disconnect();
-  }, [revealEnabled]);
+    const resizeObserver = "ResizeObserver" in window ? new ResizeObserver(revealIfUnreachable) : null;
+    resizeObserver?.observe(document.documentElement);
+    const frame = window.requestAnimationFrame(revealIfUnreachable);
+    window.addEventListener("resize", revealIfUnreachable);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", revealIfUnreachable);
+      resizeObserver?.disconnect();
+      observer.disconnect();
+    };
+  }, [entered]);
 
-  return <fieldset ref={fieldset} id={`field-${question.id}`} data-assessment-question-id={question.id} className={`atlas-assessment-scroll-target min-w-0 border-t border-[var(--color-border-soft)] pt-6 first:border-t-0 first:pt-0 ${entered ? "atlas-question-enter atlas-question-choices-enter" : "atlas-question-pending"}`} aria-describedby={describedBy}>
+  return <fieldset ref={fieldset} id={`field-${question.id}`} data-assessment-question-id={question.id} className={`atlas-assessment-scroll-target min-w-0 border-t border-[var(--color-border-soft)] pt-6 first:border-t-0 first:pt-0 ${entered ? "atlas-question-enter atlas-question-choices-enter" : "atlas-question-pending"}`} aria-describedby={describedBy} onFocusCapture={() => setEntered(true)}>
     <legend className="max-w-full text-lg font-semibold leading-7 text-[var(--color-foreground)]">{question.label}{!question.required ? <span className="ml-2 text-xs font-normal text-[var(--color-subtle-foreground)]">ไม่บังคับ</span> : null}</legend>
     <p id={helpId} className="mt-2 mb-4 max-w-2xl text-sm leading-6 text-[var(--color-muted-foreground)]">{question.help}</p>
     {question.type === "number" ? (
@@ -260,7 +276,7 @@ function AssessmentField({ question, value, showErrors, revealEnabled, onChange,
           {question.label}
           <span className="mt-2 flex items-center gap-3">
             <input type="text" inputMode="numeric" autoComplete="off" value={numberText} aria-invalid={Boolean(error)} aria-describedby={describedBy}
-              className={`atlas-focus min-w-0 flex-1 rounded-[var(--radius-control)] border border-[var(--color-border-strong)] px-4 py-3 text-base aria-invalid:border-rose-500`}
+              className={`atlas-focus min-w-0 flex-1 rounded-[var(--radius-control)] border border-[var(--color-border-strong)] px-4 py-3 text-base aria-invalid:border-rose-500 ${question.id === "battery_health_percentage" ? "bg-[var(--color-surface)]" : ""}`}
               onChange={(event) => {
                 const text = event.target.value;
                 setNumberText(text); setNumberTouched(true);
