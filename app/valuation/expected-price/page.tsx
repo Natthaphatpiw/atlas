@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { AppShell } from "@/components/app-shell";
 import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
+import { navigateForward } from "@/lib/forward-navigation";
 import { Button } from "@/components/ui-primitives";
 import type { Device } from "@/domain/types";
 import { hasPreliminaryValuation, updateExpectedPrice, type StoredValuationSession } from "@/lib/valuation-session";
@@ -76,7 +77,7 @@ export default function ExpectedPricePage() {
       expectedAmount: numericAmount,
       timestamp: new Date().toISOString(),
     });
-    router.push("/valuation/transaction-intent");
+    navigateForward(router, "/valuation/transaction-intent");
   };
 
   return (

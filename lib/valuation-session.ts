@@ -274,7 +274,7 @@ export function markHandoffReady(sessionId: string) {
 // Device IDs identify catalog entries; structured specs identify their configuration.
 export function hasSameDeviceConfiguration(left: Device, right: Device) {
   const keys = new Set([...Object.keys(left.specs), ...Object.keys(right.specs)]);
-  return left.id === right.id && [...keys].every((key) =>
+  return left.id === right.id && (left.capabilities?.stylus ?? false) === (right.capabilities?.stylus ?? false) && [...keys].every((key) =>
     left.specs[key as keyof Device["specs"]] === right.specs[key as keyof Device["specs"]],
   );
 }

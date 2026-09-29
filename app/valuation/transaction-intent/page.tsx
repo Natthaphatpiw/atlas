@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { AppShell } from "@/components/app-shell";
 import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
+import { navigateForward } from "@/lib/forward-navigation";
 import { Button } from "@/components/ui-primitives";
 import type { TransactionIntent } from "@/domain/types";
 import { hasPreliminaryValuation, hasReachedStage, hasSubmittedRequest, updateTransactionIntent, type StoredValuationSession } from "@/lib/valuation-session";
@@ -48,7 +49,7 @@ export default function TransactionIntentPage() {
       deviceId: stored.device.id,
       timestamp: new Date().toISOString(),
     });
-    router.push("/valuation/lead");
+    navigateForward(router, "/valuation/lead");
   };
 
   return (
@@ -69,7 +70,7 @@ export default function TransactionIntentPage() {
         ) : (
           <section className="atlas-reveal atlas-reveal-delay-1">
             <h2 className="text-2xl font-semibold tracking-tight text-slate-900 sm:text-3xl">คุณต้องการทำรายการแบบใด?</h2>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">เลือกหนึ่งรูปแบบเพื่อส่งพร้อมคำขอ ตัวเลือกขายฝากในขั้นตอนนี้เป็นเพียงความต้องการของผู้ขาย ยังไม่มีข้อกำหนด ค่าธรรมเนียม หรือสัญญา</p>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-600">เลือกหนึ่งรูปแบบเพื่อส่งพร้อมคำขอ หากเลือกขายฝาก จะเห็นข้อมูลค่าใช้จ่ายเบื้องต้นในขั้นตอนถัดไป โดยรายละเอียดสัญญาจะยืนยันภายหลัง</p>
             <fieldset className="mt-7 grid gap-4 sm:grid-cols-2">
               <legend className="sr-only">รูปแบบการทำรายการ</legend>
               {options.map((option, index) => {

@@ -7,6 +7,7 @@ export type DeviceCategory =
   | "phone"
   | "tablet"
   | "laptop"
+  | "desktop"
   | "watch"
   | "audio"
   | "other";
@@ -34,12 +35,14 @@ export interface Device {
   brand: string;
   model: string;
   variant?: string;
+  capabilities?: { stylus?: boolean };
   specs: {
     storage?: string;
     color?: string;
     network?: string;
     ram?: string;
     displaySize?: string;
+    chip?: string;
   };
   marketHints?: string[];
   createdAt: string;

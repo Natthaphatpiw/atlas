@@ -123,7 +123,7 @@ test("battery provenance respects explicit battery status and prunes stale branc
 });
 
 test("assessment fixtures have stable, ordered schema and conservative model coverage", () => {
-  const fixtureDefinitions = [definition, getMockAssessment(samsung)];
+  const fixtureDefinitions = [definition, getMockAssessment(samsung), getMockAssessment(macbook)];
   for (const fixture of fixtureDefinitions) {
     const questionIds = fixture.questions.map((question) => question.id);
     assert.equal(new Set(questionIds).size, questionIds.length, `${fixture.id} question IDs must be unique`);
@@ -146,8 +146,8 @@ test("assessment fixtures have stable, ordered schema and conservative model cov
   for (const device of mockDevices) {
     const deviceDefinition = getMockAssessment(device);
     const isCurrentIphone = device.category === "phone" && device.brand === "Apple" && device.model.startsWith("iPhone");
-    assert.equal(deviceDefinition.coverage, isCurrentIphone ? "iphone" : "basic", `${device.id} gets the correct fixture`);
-    assert.deepEqual(deviceDefinition.features, isCurrentIphone ? ["face_id", "wireless_charging"] : []);
+    assert.equal(deviceDefinition.coverage, isCurrentIphone ? "iphone" : device.category === "tablet" ? "tablet" : device.category === "laptop" ? "macbook" : device.category === "desktop" ? "desktop" : "basic", `${device.id} gets the correct fixture`);
+    if (isCurrentIphone) assert.deepEqual(deviceDefinition.features, ["face_id", "wireless_charging"]);
   }
   const unrecognizedIphone = { ...iphone, id: "device-iphone-future", model: "iPhone Future" };
   assert.deepEqual(getMockAssessment(unrecognizedIphone).features, []);
@@ -325,8 +325,8 @@ test("semantic answer identity preserves downstream progress across ordering and
   assert.equal(same.session.transactionIntent, "sell_and_repurchase");
 });
 
-test("basic fallback uses stable machine option IDs for Samsung and MacBook", () => {
-  for (const device of [samsung, macbook]) {
+test("basic fallback uses stable machine option IDs for unsupported phones", () => {
+  for (const device of [samsung]) {
     const basic = getMockAssessment(device);
     assert.equal(basic.id, "seller_reported_basic_v1");
     assert.deepEqual(basic.questions.map((question) => question.id), ["device_powers_on", "exterior_condition", "device_functions_normally"]);

@@ -1,7 +1,7 @@
 import type { CatalogBrand, CatalogDevice } from "@/domain/device-catalog";
 import { applePhones } from "./apple";
 import { googlePhones } from "./google";
-import { compareCatalogDevices, official } from "./helpers";
+import { compareCatalogDevices } from "./helpers";
 import { honorPhones } from "./honor";
 import { huaweiPhones } from "./huawei";
 import { onePlusPhones } from "./oneplus";
@@ -11,6 +11,8 @@ import { samsungPhones } from "./samsung";
 import { sonyPhones } from "./sony";
 import { vivoPhones } from "./vivo";
 import { xiaomiPhones } from "./xiaomi";
+import { tabletCatalog } from "./tablets";
+import { macCatalog } from "./macs";
 
 export const catalogBrands: CatalogBrand[] = [
   { id: "apple", label: "Apple" },
@@ -40,23 +42,9 @@ export const phoneCatalog: CatalogDevice[] = [
   ...xiaomiPhones,
 ].sort(compareCatalogDevices);
 
-const macBookAirM3: CatalogDevice = {
-  id: "device-macbook-air-m3",
-  category: "laptop",
-  brandId: "apple",
-  brand: "Apple",
-  model: "MacBook Air",
-  variant: "M3 13-inch",
-  releaseYear: 2024,
-  sortOrder: 10,
-  specs: { ram: "16GB", displaySize: "13.6-inch", storage: "512GB" },
-  specOptions: {},
-  sources: [official("https://support.apple.com/en-us/118551", "global")],
-  marketHints: ["Strong commercial demand", "Research-backed mock catalog"],
-  createdAt: "2026-09-20T00:00:00.000Z",
-};
+export const deviceCatalog: CatalogDevice[] = [...phoneCatalog, ...tabletCatalog, ...macCatalog].sort(compareCatalogDevices);
 
-export const deviceCatalog: CatalogDevice[] = [...phoneCatalog, macBookAirM3];
+export { tabletCatalog, macCatalog };
 
 export { detailedIPhoneIds } from "./apple";
 export { compareCatalogDevices } from "./helpers";

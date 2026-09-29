@@ -8,6 +8,7 @@ import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import type { AssessmentAnswer, AssessmentDefinition, AssessmentQuestion, AssessmentValue } from "@/domain/assessment";
 import { answerError, answerIdentity, answerLabel, applicableQuestions, assessmentComplete, assessmentProgress, isCurrentAssessment, parseNumericDraft, pruneAnswers } from "@/lib/assessment";
 import { hasReachedStage, saveAssessmentAnswers, type StoredValuationSession } from "@/lib/valuation-session";
+import { navigateForward } from "@/lib/forward-navigation";
 
 const focus = "atlas-focus";
 const primary = `atlas-interactive ${focus} w-full rounded-[var(--radius-control)] border border-[var(--color-action-primary)] bg-[var(--color-action-primary)] px-5 py-3.5 font-semibold text-white`;
@@ -133,7 +134,7 @@ export function DeviceAssessment({ initial, definition }: { initial: StoredValua
     navigating.current = true;
     const unchangedReview = compatible && existing?.reviewedAt && answerIdentity(existing.answers) === answerIdentity(answers);
     if (!unchangedReview) analytics.track({ ...context, eventName: "condition_section_completed", timestamp: new Date().toISOString() });
-    router.push("/valuation/result");
+    navigateForward(router, "/valuation/result");
   };
 
   const back = () => {
