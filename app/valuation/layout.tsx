@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui-primitives";
 import { hasSubmittedRequest, startNewValuation, type StoredValuationSession } from "@/lib/valuation-session";
+import { consumeForwardPath } from "@/lib/forward-navigation";
 
 const noSubscription = () => () => undefined;
 const getRaw = () => window.sessionStorage.getItem("atlast.valuation.session");
@@ -25,6 +26,9 @@ export default function ValuationLayout({ children }: { children: ReactNode }) {
     submitted = hasSubmittedRequest(stored);
   } catch { /* Route recovery handles invalid JSON. */ }
   const locked = hasReceipt && pathname !== "/valuation/handoff";
+  useLayoutEffect(() => {
+    if (consumeForwardPath(pathname)) window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [pathname]);
   useEffect(() => { if (locked) heading.current?.focus(); }, [locked, pathname]);
 
   if (!hydrated) return null;

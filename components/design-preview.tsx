@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
+import { AtlasMark } from "@/components/atlas-brand";
 
 type PreviewTheme = {
   id: "A" | "B" | "C";
@@ -88,15 +89,7 @@ export function DesignPreview({ theme }: DesignPreviewProps) {
         >
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div
-                className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold"
-                style={{
-                  background: "var(--preview-accent)",
-                  color: "#ffffff",
-                }}
-              >
-                A
-              </div>
+              <AtlasMark className="h-9 w-9 shrink-0 object-contain" />
               <div>
                 <p className="text-xl font-bold tracking-[-0.04em]" style={{ color: "var(--preview-primary-text)" }}>
                   Atlas

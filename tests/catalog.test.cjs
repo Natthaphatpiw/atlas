@@ -23,7 +23,7 @@ require.extensions[".ts"] = function transpileTypeScript(module, filename) {
   module._compile(output.outputText, filename);
 };
 
-const { catalogBrands, compareCatalogDevices, deviceCatalog, phoneCatalog } = require("../data/devices/index.ts");
+const { catalogBrands, compareCatalogDevices, deviceCatalog, phoneCatalog, tabletCatalog, macCatalog } = require("../data/devices/index.ts");
 const { getMockAssessment } = require("../adapters/mock/assessment.ts");
 const { MockValuationService } = require("../adapters/mock/valuation.ts");
 const session = require("../lib/valuation-session.ts");
@@ -35,7 +35,7 @@ test.after(() => {
 });
 
 test("catalog IDs, brands, configurations, and sources are internally consistent", () => {
-  assert.equal(deviceCatalog.length, 82);
+  assert.equal(deviceCatalog.length, 228);
   assert.equal(phoneCatalog.length, 81);
   assert.equal(new Set(deviceCatalog.map((device) => device.id)).size, deviceCatalog.length);
   assert.equal(new Set(catalogBrands.map((brand) => brand.id)).size, catalogBrands.length);
@@ -44,7 +44,7 @@ test("catalog IDs, brands, configurations, and sources are internally consistent
 
   for (const device of deviceCatalog) {
     assert.equal(brands.get(device.brandId), device.brand, `${device.id} uses a declared brand`);
-    assert.ok(["phone", "tablet", "laptop", "watch", "audio", "other"].includes(device.category));
+    assert.ok(["phone", "tablet", "laptop", "desktop", "watch", "audio", "other"].includes(device.category));
     assert.ok(Number.isInteger(device.releaseYear) && device.releaseYear >= 2020 && device.releaseYear <= 2026);
     assert.ok(device.sources.length > 0 && device.sources.every((source) => source.url.startsWith("https://")));
     const signature = `${device.brandId}\u0000${device.model.toLowerCase()}`;
@@ -59,6 +59,26 @@ test("catalog IDs, brands, configurations, and sources are internally consistent
     }
     if (device.category === "phone") assert.ok(device.specOptions.storage?.length > 0, `${device.id} has storage choices`);
   }
+});
+
+test("tablet and Mac additions cover verified families without changing phone identities", () => {
+  assert.equal(tabletCatalog.length, 86);
+  assert.equal(macCatalog.length, 61);
+  assert.equal(new Set(tabletCatalog.map((device) => device.brandId)).size, 9);
+  assert.ok(tabletCatalog.every((device) => device.category === "tablet" && device.releaseYear >= 2020));
+  assert.ok(macCatalog.every((device) => ["laptop", "desktop"].includes(device.category) && device.releaseYear >= 2020));
+  assert.deepEqual([Math.min(...tabletCatalog.map((device) => device.releaseYear)), Math.max(...tabletCatalog.map((device) => device.releaseYear))], [2020, 2026]);
+  assert.deepEqual([Math.min(...macCatalog.map((device) => device.releaseYear)), Math.max(...macCatalog.map((device) => device.releaseYear))], [2020, 2026]);
+  for (const id of [
+    "device-ipad-8th", "device-ipad-mini-6th", "device-ipad-air-m4-11", "device-ipad-pro-m5-13",
+    "device-galaxy-tab-s7", "device-galaxy-tab-s11", "device-galaxy-tab-a11",
+    "device-xiaomi-pad-8", "device-huawei-matepad-pro-12-2-2025", "device-honor-pad-10",
+    "device-oppo-pad-3-matte", "device-oneplus-pad-3", "device-pixel-tablet", "device-realme-pad",
+  ]) assert.ok(tabletCatalog.some((device) => device.id === id), `${id} is present`);
+  for (const family of ["MacBook Air", "MacBook Pro", "iMac", "Mac mini", "Mac Studio", "Mac Pro"]) {
+    assert.ok(deviceCatalog.some((device) => device.brandId === "apple" && device.model.startsWith(family)), `${family} is available`);
+  }
+  assert.equal(phoneCatalog.length, 81);
 });
 
 test("phone coverage and ordering are deterministic across 2020 through 2026", () => {
@@ -95,6 +115,138 @@ test("connectivity stays in the persisted snapshot without becoming a selectable
   const snapshot = selection.selectedDeviceSnapshot(iphone, { storage: "512GB", color: "Black Titanium" });
   assert.equal(snapshot.specs.network, "5G");
   assert.equal(snapshot.specs.storage, "512GB");
+});
+
+const configured = {
+    id: "configuration-fixture", category: "tablet", brand: "Example", model: "Example Pad", createdAt: "now",
+    brandId: "example", releaseYear: 2024, sortOrder: 1, sources: [{ url: "https://example.com", region: "global" }],
+    specs: { chip: "A", ram: "8GB", storage: "128GB", network: "Wi-Fi" },
+    specOptions: {
+      chip: [{ id: "a", value: "A", label: "A" }, { id: "b", value: "B", label: "B" }],
+      ram: [{ id: "8gb", value: "8GB", label: "8GB" }, { id: "16gb", value: "16GB", label: "16GB" }],
+      storage: [{ id: "128gb", value: "128GB", label: "128GB" }, { id: "512gb", value: "512GB", label: "512GB" }],
+      network: [{ id: "wi-fi", value: "Wi-Fi", label: "Wi-Fi" }, { id: "cellular", value: "Wi-Fi + Cellular", label: "Wi-Fi + Cellular" }],
+    },
+    configurations: [
+      { chip: ["A"], ram: ["8GB"], storage: ["128GB"], network: ["Wi-Fi"] },
+      { chip: ["B"], ram: ["16GB"], storage: ["512GB"], network: ["Wi-Fi", "Wi-Fi + Cellular"] },
+    ],
+};
+
+test("configuration choices filter dependent RAM, storage, and cellular variants", () => {
+  const values = (key, prior) => selection.availableDeviceSpecOptions(configured, key, prior).map((option) => option.value);
+  assert.deepEqual(selection.selectableDeviceSpecs(configured).map(([key]) => key), ["chip", "ram", "storage", "network"]);
+  assert.deepEqual(values("ram", { chip: "A" }), ["8GB"]);
+  assert.deepEqual(values("storage", { chip: "B", ram: "16GB" }), ["512GB"]);
+  assert.deepEqual(values("network", { chip: "A", ram: "8GB", storage: "128GB" }), ["Wi-Fi"]);
+  assert.deepEqual(values("network", { chip: "B", ram: "16GB", storage: "512GB" }), ["Wi-Fi", "Wi-Fi + Cellular"]);
+  assert.deepEqual(selection.reconcileDeviceSpecSelections(configured, { chip: "B", ram: "8GB", storage: "128GB", network: "Wi-Fi + Cellular" }),
+    { chip: "B", ram: "16GB", storage: "512GB", network: "Wi-Fi + Cellular" });
+  assert.equal(selection.selectedDeviceSnapshot(configured, { chip: "B", ram: "16GB", storage: "512GB", network: "Wi-Fi + Cellular" }).specs.network, "Wi-Fi + Cellular");
+});
+
+test("single options resolve while genuine choices still need a selection", () => {
+  const single = { ...configured, specOptions: { ...configured.specOptions, chip: [configured.specOptions.chip[0]] } };
+  const resolved = selection.resolveDeviceSpecSelections(single, {});
+  assert.equal(resolved.selections.chip, "A");
+  assert.equal(resolved.selections.ram, "8GB");
+  assert.equal(resolved.selections.storage, "128GB");
+  assert.equal(resolved.selections.network, "Wi-Fi");
+  assert.deepEqual(resolved.choices, []);
+  assert.deepEqual(resolved.invalidKeys, []);
+
+  const undecided = selection.resolveDeviceSpecSelections(configured, {});
+  assert.equal(undecided.selections.chip, undefined);
+  assert.ok(undecided.choices.some(({ key, options }) => key === "chip" && options.length === 2));
+});
+
+test("dependency changes clear incompatible choices and cascade fixed values", () => {
+  const fromA = selection.resolveDeviceSpecSelections(configured, { chip: "A", network: "Wi-Fi" });
+  assert.deepEqual(fromA.selections, { chip: "A", ram: "8GB", storage: "128GB", network: "Wi-Fi" });
+  assert.ok(fromA.choices.every(({ key }) => Boolean(fromA.selections[key])));
+
+  const toB = selection.resolveDeviceSpecSelections(configured, { ...fromA.selections, chip: "B" });
+  assert.deepEqual(toB.selections, { chip: "B", ram: "16GB", storage: "512GB", network: "Wi-Fi" });
+  assert.deepEqual(toB.choices.map(({ key }) => key), ["chip", "network"]);
+
+  const backToA = selection.resolveDeviceSpecSelections(configured, { ...toB.selections, chip: "A", network: "Wi-Fi + Cellular" });
+  assert.deepEqual(backToA.selections, fromA.selections);
+});
+
+test("model-inherent Mac and iPad values stay resolved in the saved device", () => {
+  for (const [id, fixed, visible] of [
+    ["device-mac-mini-m2", { chip: "M2" }, ["ram", "storage"]],
+    ["device-mac-mini-m2-pro", { chip: "M2 Pro" }, ["ram", "storage"]],
+    ["device-macbook-pro-m3-pro-14", { displaySize: "14.2-inch" }, ["chip", "ram", "storage"]],
+    ["device-ipad-pro-12-9-6th", { displaySize: "12.9-inch" }, ["storage", "network"]],
+  ]) {
+    const device = deviceCatalog.find((item) => item.id === id);
+    const resolved = selection.resolveDeviceSpecSelections(device, {});
+    assert.deepEqual(resolved.invalidKeys, [], id);
+    for (const [key, value] of Object.entries(fixed)) assert.equal(resolved.selections[key], value, `${id}.${key}`);
+    for (const key of Object.keys(fixed)) assert.ok(!resolved.choices.some((choice) => choice.key === key), `${id}.${key} is hidden`);
+    assert.deepEqual(resolved.choices.map(({ key }) => key), visible, id);
+  }
+
+  const mini = deviceCatalog.find((item) => item.id === "device-mac-mini-m2");
+  const choices = selection.resolveDeviceSpecSelections(mini, { ram: "16GB", storage: "512GB" });
+  const snapshot = selection.selectedDeviceSnapshot(mini, choices.selections);
+  const previousWindow = global.window;
+  const entries = new Map();
+  global.window = { sessionStorage: {
+    getItem: (key) => entries.get(key) ?? null,
+    setItem: (key, value) => entries.set(key, value),
+    removeItem: (key) => entries.delete(key),
+  } };
+  try {
+    session.continueWithDevice(snapshot);
+    assert.equal(session.readValuationSession().device.specs.chip, "M2");
+    assert.equal(session.readValuationSession().device.specs.ram, "16GB");
+  } finally {
+    global.window = previousWindow;
+  }
+});
+
+test("a dimension with zero valid options is reported as catalog data error", () => {
+  const broken = { ...configured, specOptions: { ...configured.specOptions, chip: [] } };
+  const resolved = selection.resolveDeviceSpecSelections(broken, {});
+  assert.deepEqual(resolved.invalidKeys, ["chip"]);
+  assert.deepEqual(resolved.selections, {});
+});
+
+test("catalog configuration rows refer only to real offered options and defaults", () => {
+  for (const device of deviceCatalog) {
+    assert.deepEqual(selection.resolveDeviceSpecSelections(device, {}).invalidKeys, [], `${device.id} has valid starting choices`);
+  }
+  for (const device of [...tabletCatalog, ...macCatalog]) {
+    if (!device.configurations?.length) continue;
+    const keys = Object.keys(device.configurations[0]);
+    assert.ok(keys.length > 0, `${device.id} has constrained dimensions`);
+    for (const configuration of device.configurations) {
+      for (const [key, values] of Object.entries(configuration)) {
+        assert.ok(values.length > 0, `${device.id}.${key} has a nonempty configuration`);
+        assert.ok(values.every((value) => device.specOptions[key]?.some((option) => option.value === value)), `${device.id}.${key} uses offered values`);
+      }
+    }
+    for (const [key, offered] of Object.entries(device.specOptions)) {
+      if (!device.configurations.some((configuration) => configuration[key])) continue;
+      assert.ok(offered.every((option) => device.configurations.some((configuration) =>
+        !configuration[key] || configuration[key].includes(option.value))), `${device.id}.${key} has no unreachable choices`);
+    }
+    assert.deepEqual(selection.reconcileDeviceSpecSelections(device, Object.fromEntries(selection.selectableDeviceSpecs(device).map(([key]) => [key, device.specs[key]]))),
+      Object.fromEntries(selection.selectableDeviceSpecs(device).map(([key]) => [key, device.specs[key]])), `${device.id} default is selectable`);
+  }
+});
+
+test("tablet capabilities survive selection and a changed variant invalidates old progress", () => {
+  const ipad = tabletCatalog.find((device) => device.id === "device-ipad-air-m3-11");
+  const selected = selection.selectedDeviceSnapshot(ipad, { storage: "256GB", network: "Wi-Fi + Cellular", displaySize: "11-inch" });
+  assert.equal(selected.capabilities.stylus, true);
+  assert.equal(selected.specs.network, "Wi-Fi + Cellular");
+  assert.equal(getMockAssessment(selected).features.includes("cellular"), true);
+  assert.equal(getMockAssessment(selected).features.includes("stylus"), true);
+  assert.equal(session.hasSameDeviceConfiguration(selected, { ...selected, specs: { ...selected.specs, network: "Wi-Fi" } }), false);
+  assert.equal(session.hasSameDeviceConfiguration(selected, { ...selected, capabilities: undefined }), false);
 });
 
 test("assessment coverage and service catalog boundary match the expanded catalog", async () => {

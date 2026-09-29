@@ -6,6 +6,7 @@ import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { MockValuationService } from "@/adapters/mock/valuation";
 import { AppShell } from "@/components/app-shell";
 import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
+import { navigateForward } from "@/lib/forward-navigation";
 import { Button } from "@/components/ui-primitives";
 import type { Device } from "@/domain/types";
 import { type MockValuationResult } from "@/services/valuation-service";
@@ -72,7 +73,7 @@ export default function ResultPage() {
       deviceId: storedSession.device.id,
       timestamp: new Date().toISOString(),
     });
-    router.push("/valuation/expected-price");
+    navigateForward(router, "/valuation/expected-price");
   };
 
   const handleBack = () => {

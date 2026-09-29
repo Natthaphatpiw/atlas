@@ -331,6 +331,207 @@ const iPhoneQuestions: AssessmentQuestion[] = [
   },
 ];
 
+const reportedChoice = (
+  id: string,
+  sectionId: string,
+  groupId: string,
+  label: string,
+  features?: AssessmentFeature[],
+): AssessmentQuestion => ({
+  id, sectionId, groupId, label, help: sellerReportedHelp,
+  type: "yes_no_unknown", required: true, options: yesNoUnknown,
+  applicability: features ? { features } : undefined,
+});
+
+const reportedSeverity = (
+  id: string,
+  groupId: string,
+  label: string,
+  features?: AssessmentFeature[],
+): AssessmentQuestion => ({
+  id, sectionId: "physical", groupId, label, help: sellerReportedHelp,
+  type: "single", required: true, options: severityOptions,
+  applicability: features ? { features } : undefined,
+});
+
+const runningQuestion = (
+  id: string,
+  groupId: string,
+  label: string,
+  features?: AssessmentFeature[],
+): AssessmentQuestion => ({
+  ...functionQuestion(id, groupId, label, features),
+});
+
+const sharedReadiness: AssessmentQuestion[] = [
+  reportedChoice("device_powers_on", "basics", "basics_readiness", "เครื่องเปิดติดหรือไม่?"),
+  reportedChoice("device_usable_normally", "basics", "basics_readiness", "โดยรวมเครื่องใช้งานได้ตามปกติหรือไม่?"),
+  reportedChoice("severe_physical_or_liquid_damage", "basics", "basics_readiness", "มีความเสียหายรุนแรงหรือร่องรอยโดนน้ำ/ของเหลวหรือไม่?"),
+];
+
+const sharedRepairQuestions = (hasBuiltInDisplay: boolean, hasBattery: boolean): AssessmentQuestion[] => [
+  reportedChoice("repair_or_parts_replaced", "repairs", "repairs_history", "เครื่องเคยซ่อมหรือเปลี่ยนอะไหล่หรือไม่?"),
+  {
+    id: "repaired_components", sectionId: "repairs", groupId: "repairs_history",
+    label: "หากเคยซ่อมหรือเปลี่ยนอะไหล่ โปรดเลือกส่วนที่เกี่ยวข้อง",
+    help: sellerReportedHelp, type: "multi", required: true,
+    visibleWhen: { all: [{ questionId: "repair_or_parts_replaced", operator: "equals", optionId: "yes" }] },
+    options: [
+      ...(hasBuiltInDisplay ? [{ id: "display", label: "หน้าจอ" }] : []),
+      ...(hasBattery ? [{ id: "battery", label: "แบตเตอรี่" }] : []),
+      { id: "ports", label: "พอร์ตหรือช่องเสียบ" },
+      { id: "board", label: "แผงวงจรหรือชิ้นส่วนภายใน" },
+      { id: "other", label: "ส่วนอื่น" },
+      { id: "unknown", label: "ไม่ทราบรายละเอียด", exclusive: true },
+    ],
+  },
+  {
+    id: "replacement_parts_source", sectionId: "repairs", groupId: "repairs_parts",
+    label: "อะไหล่ที่เปลี่ยนเป็นอะไหล่ลักษณะใด?",
+    help: sellerReportedHelp, type: "single", required: true,
+    visibleWhen: { all: [{ questionId: "repair_or_parts_replaced", operator: "equals", optionId: "yes" }] },
+    options: [
+      { id: "genuine_or_original", label: "แท้หรืออะไหล่เดิมตามที่ผู้ขายทราบ" },
+      { id: "used", label: "อะไหล่มือสอง" },
+      { id: "third_party", label: "อะไหล่เทียบหรือจากผู้ผลิตรายอื่น" },
+      { id: "mixed", label: "มีหลายประเภท" },
+      { id: "unknown_unverified", label: "ไม่ทราบ/ยังไม่ได้ยืนยัน" },
+    ],
+  },
+];
+
+const sharedOrganizationQuestions: AssessmentQuestion[] = [
+  reportedChoice("organization_owned_or_managed", "organization", "organization_management", "เครื่องเป็นของหรืออยู่ภายใต้การจัดการของบริษัท โรงเรียน หรือองค์กรหรือไม่?"),
+  reportedChoice("mdm_or_configuration_profile", "organization", "organization_management", "เครื่องมีระบบจัดการอุปกรณ์หรือโปรไฟล์ขององค์กรหรือไม่?"),
+  reportedChoice("organization_release_ready", "organization", "organization_management", "หากเป็นเครื่องขององค์กร สามารถปลดการจัดการและโอนสิทธิ์ก่อนขายได้หรือไม่?"),
+];
+sharedOrganizationQuestions[2].visibleWhen = {
+  all: [{ questionId: "organization_owned_or_managed", operator: "equals", optionId: "yes" }],
+};
+
+const sharedAccessoryQuestions: AssessmentQuestion[] = [
+  {
+    id: "included_accessories", sectionId: "accessories", groupId: "accessories_included",
+    label: "มีอุปกรณ์ใดส่งมอบพร้อมเครื่องบ้าง?",
+    help: sellerReportedHelp, type: "multi", required: true,
+    options: [
+      { id: "charger_or_power_cord", label: "อะแดปเตอร์/สายชาร์จหรือสายไฟ" },
+      { id: "original_box", label: "กล่องเดิม" },
+      { id: "other", label: "อุปกรณ์อื่น" },
+      { id: "none", label: "ไม่มี", exclusive: true },
+      { id: "unknown", label: "ไม่ทราบ", exclusive: true },
+    ],
+  },
+  reportedChoice("included_accessories_work", "accessories", "accessories_included", "อุปกรณ์ที่จะส่งมอบยังใช้งานได้ตามปกติหรือไม่?"),
+];
+sharedAccessoryQuestions[1].visibleWhen = {
+  any: [
+    { questionId: "included_accessories", operator: "includes", optionId: "charger_or_power_cord" },
+    { questionId: "included_accessories", operator: "includes", optionId: "other" },
+  ],
+};
+
+const tabletQuestions: AssessmentQuestion[] = [
+  ...sharedReadiness,
+  reportedSeverity("display_glass_condition", "physical_display", "กระจกหน้าจอมีรอยแตกหรือบิ่นระดับใด?"),
+  reportedSeverity("display_scratch_condition", "physical_display", "หน้าจอมีรอยขีดข่วนระดับใด?"),
+  reportedSeverity("back_cover_condition", "physical_body", "ฝาหลังมีรอยแตก รอยบุบ หรือรอยขีดข่วนระดับใด?"),
+  reportedSeverity("frame_body_condition", "physical_body", "กรอบและตัวเครื่องมีความเสียหายระดับใด?"),
+  reportedSeverity("frame_bending_condition", "physical_body", "ตัวเครื่องมีอาการคดหรืองอระดับใด?"),
+  reportedSeverity("camera_lens_condition", "physical_body", "เลนส์กล้องมีความเสียหายระดับใด?"),
+  runningQuestion("display_works", "function_display", "หน้าจอแสดงผลได้ปกติหรือไม่?"),
+  runningQuestion("display_has_no_defects", "function_display", "หน้าจอไม่มีจุดเสีย เส้น หรือสีผิดปกติใช่หรือไม่?"),
+  runningQuestion("touchscreen_works", "function_display", "หน้าจอสัมผัสได้ปกติหรือไม่?"),
+  runningQuestion("stylus_works", "function_display", "การใช้งานปากกาสัมผัสกับหน้าจอได้ปกติหรือไม่?", ["stylus"]),
+  runningQuestion("front_camera_works", "function_media", "กล้องหน้าใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("rear_camera_works", "function_media", "กล้องหลังใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("speakers_work", "function_media", "ลำโพงใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("microphones_work", "function_media", "ไมโครโฟนใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("physical_buttons_work", "function_controls", "ปุ่มกดต่าง ๆ ใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("charging_port_works", "function_controls", "พอร์ตชาร์จและการชาร์จผ่านสายใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("wifi_works", "function_connectivity", "Wi‑Fi ใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("bluetooth_works", "function_connectivity", "Bluetooth ใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("cellular_works", "function_connectivity", "การเชื่อมต่อเครือข่ายมือถือใช้งานได้ปกติหรือไม่?", ["cellular"]),
+  reportedChoice("battery_holds_charge", "battery", "battery_condition", "แบตเตอรี่เก็บประจุและใช้งานได้ตามปกติหรือไม่?"),
+  reportedChoice("battery_service_warning", "battery", "battery_condition", "มีข้อความเตือนหรืออาการผิดปกติเกี่ยวกับแบตเตอรี่หรือไม่?"),
+  reportedChoice("battery_replaced", "battery", "battery_condition", "แบตเตอรี่เคยถูกเปลี่ยนหรือไม่?"),
+  ...sharedRepairQuestions(true, true),
+  reportedChoice("account_sign_out_ready", "security", "security_account", "สามารถลงชื่อออกจากบัญชีผู้ใช้และนำบัญชีออกจากเครื่องก่อนขายได้หรือไม่?"),
+  reportedChoice("activation_lock_removal_ready", "security", "security_account", "สามารถปิดการล็อกการเปิดใช้งานหรือการป้องกันหลังรีเซ็ตก่อนขายได้หรือไม่?"),
+  reportedChoice("lost_mode_or_reported_lost", "security", "security_status", "ตามที่คุณทราบ เครื่องอยู่ในโหมดสูญหายหรือเคยถูกรายงานว่าสูญหายหรือไม่?"),
+  ...sharedOrganizationQuestions,
+  ...sharedAccessoryQuestions,
+];
+
+const macBookQuestions: AssessmentQuestion[] = [
+  ...sharedReadiness,
+  reportedSeverity("display_glass_condition", "physical_display", "หน้าจอมีรอยแตกหรือบิ่นระดับใด?"),
+  reportedSeverity("display_scratch_condition", "physical_display", "หน้าจอมีรอยขีดข่วนหรือรอยกดทับระดับใด?"),
+  reportedSeverity("case_body_condition", "physical_body", "ฝาและตัวเครื่องมีรอยบุบหรือรอยขีดข่วนระดับใด?"),
+  reportedSeverity("chassis_bending_condition", "physical_body", "ตัวเครื่องมีอาการคดหรืองอระดับใด?"),
+  reportedSeverity("hinge_condition", "physical_body", "บานพับมีความเสียหายหรือหลวมระดับใด?"),
+  reportedSeverity("keyboard_trackpad_condition", "physical_body", "คีย์บอร์ดและแทร็กแพดมีความเสียหายภายนอกระดับใด?"),
+  runningQuestion("display_works", "function_display", "หน้าจอแสดงผลได้ปกติหรือไม่?"),
+  runningQuestion("display_has_no_defects", "function_display", "หน้าจอไม่มีจุดเสีย เส้น หรือสีผิดปกติใช่หรือไม่?"),
+  runningQuestion("keyboard_works", "function_input", "คีย์บอร์ดทุกปุ่มใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("trackpad_works", "function_input", "แทร็กแพดและการคลิกใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("touch_id_works", "function_input", "Touch ID ใช้งานได้ปกติหรือไม่?", ["touch_id"]),
+  runningQuestion("camera_works", "function_media", "กล้องใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("microphones_work", "function_media", "ไมโครโฟนใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("speakers_work", "function_media", "ลำโพงใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("charging_works", "function_ports", "เครื่องรับไฟและชาร์จผ่านพอร์ตที่รองรับได้ปกติหรือไม่?"),
+  runningQuestion("ports_work", "function_ports", "พอร์ตและช่องเสียบต่าง ๆ ใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("wifi_works", "function_connectivity", "Wi‑Fi ใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("bluetooth_works", "function_connectivity", "Bluetooth ใช้งานได้ปกติหรือไม่?"),
+  reportedChoice("battery_holds_charge", "battery", "battery_condition", "แบตเตอรี่เก็บประจุและใช้งานได้ตามปกติหรือไม่?"),
+  reportedChoice("battery_service_warning", "battery", "battery_condition", "มีข้อความแนะนำให้รับบริการแบตเตอรี่หรือคำเตือนหรือไม่?"),
+  reportedChoice("battery_replaced", "battery", "battery_condition", "แบตเตอรี่เคยถูกเปลี่ยนหรือไม่?"),
+  ...sharedRepairQuestions(true, true),
+  reportedChoice("find_my_enabled", "security", "security_account", "ขณะนี้ Find My เปิดอยู่หรือไม่?"),
+  reportedChoice("activation_lock_removal_ready", "security", "security_account", "สามารถปิด Activation Lock และนำ Apple Account ออกจากเครื่องก่อนขายได้หรือไม่?"),
+  reportedChoice("lost_mode_or_reported_lost", "security", "security_status", "ตามที่คุณทราบ เครื่องอยู่ใน Lost Mode หรือเคยถูกรายงานว่าสูญหายหรือไม่?"),
+  reportedChoice("seller_can_sign_out_apple_account", "security", "security_status", "คุณสามารถลงชื่อออกจาก Apple Account บนเครื่องนี้ได้หรือไม่?"),
+  ...sharedOrganizationQuestions,
+  ...sharedAccessoryQuestions,
+];
+
+const desktopQuestions = (builtInDisplay: boolean): AssessmentQuestion[] => [
+  ...sharedReadiness,
+  reportedSeverity("display_glass_condition", "physical_display", "หน้าจอในตัวเครื่องมีรอยแตกหรือบิ่นระดับใด?", ["built_in_display"]),
+  reportedSeverity("display_scratch_condition", "physical_display", "หน้าจอในตัวเครื่องมีรอยขีดข่วนระดับใด?", ["built_in_display"]),
+  reportedSeverity("case_body_condition", "physical_body", "ตัวเครื่องมีรอยบุบหรือรอยขีดข่วนระดับใด?"),
+  reportedSeverity("ports_condition", "physical_body", "พอร์ตและช่องเสียบมีความเสียหายภายนอกระดับใด?"),
+  runningQuestion("built_in_display_works", "function_display", "หน้าจอในตัวเครื่องแสดงผลได้ปกติหรือไม่?", ["built_in_display"]),
+  runningQuestion("built_in_display_has_no_defects", "function_display", "หน้าจอในตัวเครื่องไม่มีจุดเสีย เส้น หรือสีผิดปกติใช่หรือไม่?", ["built_in_display"]),
+  runningQuestion("external_display_output_works", "function_display", "การส่งภาพออกจอภายนอกใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("camera_works", "function_media", "กล้องในตัวเครื่องใช้งานได้ปกติหรือไม่?", ["built_in_camera"]),
+  runningQuestion("microphones_work", "function_media", "ไมโครโฟนในตัวเครื่องใช้งานได้ปกติหรือไม่?", ["built_in_microphone"]),
+  runningQuestion("speakers_work", "function_media", "ลำโพงในตัวเครื่องใช้งานได้ปกติหรือไม่?", ["built_in_speakers"]),
+  runningQuestion("power_stability", "function_power", "เครื่องรับไฟและทำงานต่อเนื่องได้ปกติหรือไม่?"),
+  runningQuestion("ports_work", "function_power", "พอร์ตและช่องเสียบต่าง ๆ ใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("fan_noise_normal", "function_power", "พัดลมหรือเสียงจากเครื่องทำงานตามปกติหรือไม่?"),
+  runningQuestion("wifi_works", "function_connectivity", "Wi‑Fi ใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("bluetooth_works", "function_connectivity", "Bluetooth ใช้งานได้ปกติหรือไม่?"),
+  ...sharedRepairQuestions(builtInDisplay, false),
+  reportedChoice("find_my_enabled", "security", "security_account", "ขณะนี้ Find My เปิดอยู่หรือไม่?"),
+  reportedChoice("activation_lock_removal_ready", "security", "security_account", "สามารถปิด Activation Lock และนำ Apple Account ออกจากเครื่องก่อนขายได้หรือไม่?"),
+  reportedChoice("lost_mode_or_reported_lost", "security", "security_status", "ตามที่คุณทราบ เครื่องอยู่ใน Lost Mode หรือเคยถูกรายงานว่าสูญหายหรือไม่?"),
+  reportedChoice("seller_can_sign_out_apple_account", "security", "security_status", "คุณสามารถลงชื่อออกจาก Apple Account บนเครื่องนี้ได้หรือไม่?"),
+  ...sharedOrganizationQuestions,
+  ...sharedAccessoryQuestions,
+];
+
+const extendedSections: AssessmentDefinition["sections"] = [
+  { id: "basics", label: "ภาพรวมเครื่อง" },
+  { id: "physical", label: "สภาพภายนอก" },
+  { id: "functionality", label: "การทำงาน" },
+  { id: "battery", label: "แบตเตอรี่" },
+  { id: "repairs", label: "การซ่อมและอะไหล่" },
+  { id: "security", label: "บัญชีและความปลอดภัย" },
+  { id: "organization", label: "การจัดการโดยองค์กร" },
+  { id: "accessories", label: "อุปกรณ์ที่ส่งมอบ" },
+];
+
 const basicQuestions: AssessmentQuestion[] = [
   {
     id: "device_powers_on",
@@ -384,6 +585,33 @@ export function getMockAssessment(device: Device): AssessmentDefinition {
         { id: "organization", label: "การจัดการโดยองค์กร" },
       ],
       questions: iPhoneQuestions,
+    };
+  }
+
+  if (device.category === "tablet") {
+    const features: AssessmentFeature[] = [];
+    if (/cellular|\b(?:4g|5g|lte)\b/i.test(device.specs.network ?? "")) features.push("cellular");
+    if (device.capabilities?.stylus === true) features.push("stylus");
+    return {
+      id: "seller_reported_tablet_v1", version: 1, coverage: "tablet",
+      features, sections: extendedSections, questions: tabletQuestions,
+    };
+  }
+
+  if (device.category === "laptop" && device.brand === "Apple" && /^MacBook\b/i.test(device.model)) {
+    return {
+      id: "seller_reported_macbook_v1", version: 1, coverage: "macbook",
+      features: ["touch_id"], sections: extendedSections, questions: macBookQuestions,
+    };
+  }
+
+  if (device.category === "desktop" && device.brand === "Apple") {
+    const builtIn = /^iMac\b/i.test(device.model);
+    return {
+      id: "seller_reported_mac_desktop_v1", version: 1, coverage: "desktop",
+      features: builtIn ? ["built_in_display", "built_in_camera", "built_in_microphone", "built_in_speakers"] : [],
+      sections: extendedSections.filter((section) => section.id !== "battery"),
+      questions: desktopQuestions(builtIn),
     };
   }
 

@@ -1,6 +1,15 @@
 import type { DeviceCategory } from "./types";
 
-export type AssessmentFeature = "face_id" | "touch_id" | "wireless_charging";
+export type AssessmentFeature =
+  | "face_id"
+  | "touch_id"
+  | "wireless_charging"
+  | "cellular"
+  | "stylus"
+  | "built_in_display"
+  | "built_in_camera"
+  | "built_in_microphone"
+  | "built_in_speakers";
 export type AssessmentValue =
   | { kind: "choice"; optionId: string }
   | { kind: "multi"; optionIds: string[] }
@@ -40,7 +49,7 @@ export type AssessmentQuestion = QuestionBase & (
 export interface AssessmentDefinition {
   id: string;
   version: number;
-  coverage: "iphone" | "basic";
+  coverage: "iphone" | "tablet" | "macbook" | "desktop" | "basic";
   features: AssessmentFeature[];
   sections: { id: string; label: string }[];
   // Dependencies must precede their dependent questions.
