@@ -20,7 +20,7 @@ interface ValuationService {
 ```
 
 - `getDeviceCatalog` returns research-backed frontend mock records with catalog-only brand, release-order, spec-option and provenance metadata. The Device page persists only the compatible `Device` snapshot. A future backend may own catalog records behind this method; database technology and transport are not selected here.
-- `getDeviceAssessment` returns the applicable data-driven seller assessment for the selected device. Its current mock fixture provides detailed iPhone coverage (`seller_reported_iphone_v1`) and a basic non-iPhone fallback (`seller_reported_basic_v2`) that covers every item on Astly's seller condition checklist. It is not a verified inspection or a pricing rule.
+- `getDeviceAssessment` returns the applicable data-driven seller assessment for the selected device. Its current mock fixture provides definitions for iPhone (`seller_reported_iphone_v1`), tablets (`seller_reported_tablet_v1`), MacBooks (`seller_reported_macbook_v1`) and Mac desktops (`seller_reported_mac_desktop_v1`). Other phones get a basic fallback (`seller_reported_basic_v2`) that covers every item on Astly's seller condition checklist. It is not a verified inspection or a pricing rule.
 - `getConditionQuestions` is a legacy v1 fixture API. The v2 assessment and its prerequisites do not use it.
 - `getMockValuationResult` still returns the fixed THB range 24500–27000, but Result no longer calls it. It is retained as a fixture method, not the active Result boundary.
 - `estimateValue` is unused formula-based demo logic. It rejects v2 seller assessments and is not an approved production valuation engine.
@@ -53,20 +53,30 @@ type AstlyEstimateJobStatus = "QUEUED" | "PROCESSING" | "RETRYING" | "COMPLETED"
 
 Server validation (`lib/estimate-request.ts`) is the authority for what is priced. `deviceId` must be a catalog entry and every spec value must be one of that entry's catalog options. The assessment must match the current definition ID/version and be complete for that device; at most 100 answers are accepted, and the source is always treated as `seller_reported`. Browser-supplied scores, labels, statuses and prices are never trusted. Watch, audio and other categories cannot be mapped and are rejected as `invalid_request`.
 
-Atlas sends Astly only the item description and checklist (`lib/astly-estimate-input.ts`): phones as `Apple`/`iPhone` or `โทรศัพท์มือถือ`, tablets as `Apple`/`iPad` or `แท็บเล็ต`, laptops as `Apple`/`MacBook` (RAM, SSD and display size as free-text `appleSpecs`) or `โน้ตบุค` (`ram`, `storage`, `screenSize`). Every request carries brand and model (laptops append the catalog variant), and phones, tablets and MacBooks carry the selected storage as `capacity`. It sends no colour, phone variant, photos, contact data, expected price, transaction intent or session ID.
+Atlas sends Astly only the item description and checklist (`lib/astly-estimate-input.ts`). Each category maps as follows:
+
+| Device | Sent as | Extra fields |
+| --- | --- | --- |
+| Phone | `Apple`/`iPhone`, or `โทรศัพท์มือถือ` | — |
+| Tablet | `Apple`/`iPad`, or `แท็บเล็ต` | iPads add network and chip as free-text `appleSpecs` |
+| MacBook | `Apple`/`MacBook` | Chip, RAM, SSD and display size as `appleSpecs` |
+| Mac desktop | `Apple` with `iMac`, `Mac mini`, `Mac Studio` or `Mac Pro` (from the model name) | Same `appleSpecs` as MacBook |
+| Other laptop | `โน้ตบุค` | `cpu`, `ram`, `storage`, `screenSize` |
+
+Every request carries brand, the catalog model name and the selected storage as `capacity`. Every catalog device maps to a category Astly accepts; `tests/astly.test.cjs` checks this. It sends no colour, phone variant, photos, contact data, expected price, transaction intent or session ID.
 
 Only applicable answers count (the same pruning as the assessment), and `unknown` or skipped answers never set a checklist item:
 
 | Astly checklist item | Set when the seller reports |
 | --- | --- |
 | `screenCrack` | `display_glass_condition` is `minor`, `noticeable` or `severe` |
-| `screenLineDeadPixel` | `display_works` is `no` |
-| `touchIssue` | `touchscreen_works` is `no` |
-| `batteryIssue` | `battery_service_warning` or `battery_degraded` is `yes`, or `battery_health_percentage` is below 80 |
-| `bodyDamage` | `back_glass_condition` or `frame_body_condition` is `noticeable` or `severe` (these iPhone questions include cosmetic scratches), or the basic `exterior_condition` (dents, cracks, damage) is `minor`, `noticeable` or `severe` |
-| `cameraIssue` | `front_camera_works`, `rear_camera_works`, `cameras_work` or `face_id_works` is `no`, or `camera_lens_condition` is `noticeable` or `severe` |
-| `portButtonIssue` | any of buttons, haptics, wired/wireless charging, Touch ID, speakers, microphones, Wi‑Fi, Bluetooth, cellular, or `buttons_ports_work` is `no` |
-| `waterIssue` | `device_powers_on` is `no`, or `severe_physical_or_liquid_damage` is `yes` |
+| `screenLineDeadPixel` | `display_works`, `display_has_no_defects`, `built_in_display_works` or `built_in_display_has_no_defects` is `no` |
+| `touchIssue` | `touchscreen_works` or `stylus_works` is `no` |
+| `batteryIssue` | `battery_service_warning` or `battery_degraded` is `yes`, `battery_holds_charge` is `no`, or `battery_health_percentage` is below 80 |
+| `bodyDamage` | Damage-only questions (`exterior_condition`, `frame_bending_condition`, `chassis_bending_condition`, and the tablet `frame_body_condition`) at any level. Questions that also cover scratches or wear (iPhone `back_glass_condition`/`frame_body_condition`, `back_cover_condition`, `case_body_condition`, `hinge_condition`, `keyboard_trackpad_condition`) at `noticeable` or `severe` |
+| `cameraIssue` | `front_camera_works`, `rear_camera_works`, `cameras_work`, `camera_works` or `face_id_works` is `no`, or `camera_lens_condition` is `noticeable` or `severe` |
+| `portButtonIssue` | Any of these is `no`: buttons, haptics, charging (wired, wireless, port), ports, external display output, keyboard, trackpad, Touch ID, speakers, microphones, Wi‑Fi, Bluetooth, cellular or `buttons_ports_work`. Or the desktop `ports_condition` is `noticeable` or `severe` |
+| `waterIssue` | `device_powers_on` or `power_stability` is `no`, or `severe_physical_or_liquid_damage` is `yes` |
 
 Other iPhone answers (display scratches, overall usability, repair/parts history, account/security and organization management) are collected but do not affect Astly's estimate. This mapping is an Atlas decision, not an Astly-approved equivalence.
 
