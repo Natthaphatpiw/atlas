@@ -28,6 +28,7 @@ require.extensions[".ts"] = function transpileTypeScript(module, filename) {
 const assessment = require("../lib/assessment.ts");
 const { getMockAssessment } = require("../adapters/mock/assessment.ts");
 const { mockDevices } = require("../adapters/mock/devices.ts");
+const { deviceCatalog } = require("../data/devices/index.ts");
 const { toAstlyConditionChecks, toAstlyEstimateInput, UnsupportedDeviceError } = require("../lib/astly-estimate-input.ts");
 const { parseEstimateRequest } = require("../lib/estimate-request.ts");
 const { estimateRequestBody } = require("../lib/estimate-request-body.ts");
@@ -60,7 +61,7 @@ function healthyAnswers(device, overrides = {}) {
     if (question.type === "number") return { kind: "number", value: 92 };
     if (question.type === "single") return { kind: "choice", optionId: "none" };
     if (question.type === "multi") return { kind: "multi", optionIds: ["other"] };
-    const positive = /(_works?|powers_on|usable_normally|functions_normally|_ready|can_sign_out)/.test(question.id);
+    const positive = /(_works?|powers_on|usable_normally|functions_normally|_ready|can_sign_out|has_no_defects|holds_charge|power_stability|_normal$)/.test(question.id);
     return { kind: "choice", optionId: positive ? "yes" : "no" };
   };
   let answers = [];
@@ -143,11 +144,65 @@ test("devices become the same Astly request the LINE estimate form sends", () =>
   assert.equal(android.appleCategory, undefined);
   assert.equal(android.brand, "Samsung");
   assert.ok(!("color" in android), "colour would only split Astly's cache");
-  assert.deepEqual(toAstlyEstimateInput(macbook, noFaults), {
-    itemType: "Apple", appleCategory: "MacBook", brand: "Apple", model: "MacBook Air M3 13-inch", capacity: "512GB",
-    appleSpecs: "RAM 16GB · SSD 512GB · 13.6-inch", conditionChecks: noFaults,
-  });
+  const macbookInput = toAstlyEstimateInput(macbook, noFaults);
+  assert.equal(macbookInput.appleCategory, "MacBook");
+  assert.equal(macbookInput.model, "MacBook Air (M3, 13-inch)");
+  assert.match(macbookInput.appleSpecs, /^M3 .*RAM 16GB · SSD 512GB · 13\.6-inch$/);
   assert.throws(() => toAstlyEstimateInput({ ...samsung, category: "watch" }, noFaults), UnsupportedDeviceError);
+});
+
+test("every catalog device maps to an Astly request in a category Astly's demo API accepts", () => {
+  const astlyAppleCategories = ["iPhone", "iPad", "MacBook", "iMac", "Mac mini", "Mac Studio", "Mac Pro"];
+  const seen = new Set();
+  for (const device of deviceCatalog) {
+    const input = toAstlyEstimateInput(device, noFaults);
+    assert.ok(input.model && input.brand, device.id);
+    if (input.itemType === "Apple") {
+      assert.ok(astlyAppleCategories.includes(input.appleCategory), `${device.id}: ${input.appleCategory}`);
+      seen.add(input.appleCategory);
+    } else {
+      assert.equal(input.appleCategory, undefined, device.id);
+      seen.add(input.itemType);
+    }
+    for (const value of Object.values(input)) if (typeof value === "string") assert.ok(value.length <= 200, device.id);
+  }
+  for (const expected of ["iPhone", "iPad", "MacBook", "iMac", "Mac mini", "Mac Studio", "Mac Pro", "โทรศัพท์มือถือ", "แท็บเล็ต"]) assert.ok(seen.has(expected), expected);
+});
+
+test("tablet, MacBook and Mac desktop answers map onto Astly's checklist", () => {
+  const tablet = deviceCatalog.find((device) => device.category === "tablet" && device.brand !== "Apple");
+  const healthyTablet = healthyAnswers(tablet);
+  assert.equal(healthyTablet.definition.coverage, "tablet");
+  assert.deepEqual(toAstlyConditionChecks(healthyTablet.definition, tablet, healthyTablet.answers), noFaults);
+  const brokenTablet = healthyAnswers(tablet, {
+    frame_body_condition: choiceValue("minor"),
+    display_has_no_defects: choiceValue("no"),
+    battery_holds_charge: choiceValue("no"),
+    charging_port_works: choiceValue("no"),
+  });
+  assert.deepEqual(toAstlyConditionChecks(brokenTablet.definition, tablet, brokenTablet.answers), {
+    ...noFaults, bodyDamage: true, screenLineDeadPixel: true, batteryIssue: true, portButtonIssue: true,
+  }, "the tablet frame question asks about damage only, so minor counts");
+
+  const healthyMac = healthyAnswers(macbook);
+  assert.equal(healthyMac.definition.coverage, "macbook");
+  assert.deepEqual(toAstlyConditionChecks(healthyMac.definition, macbook, healthyMac.answers), noFaults);
+  const wornMac = healthyAnswers(macbook, { case_body_condition: choiceValue("minor"), hinge_condition: choiceValue("minor") });
+  assert.equal(toAstlyConditionChecks(wornMac.definition, macbook, wornMac.answers).bodyDamage, false, "light wear is not damage");
+  const brokenMac = healthyAnswers(macbook, { chassis_bending_condition: choiceValue("minor"), keyboard_works: choiceValue("no"), camera_works: choiceValue("no") });
+  assert.deepEqual(toAstlyConditionChecks(brokenMac.definition, macbook, brokenMac.answers), {
+    ...noFaults, bodyDamage: true, portButtonIssue: true, cameraIssue: true,
+  });
+
+  const imac = deviceCatalog.find((device) => device.category === "desktop" && /^iMac/.test(device.model));
+  const brokenImac = healthyAnswers(imac, { built_in_display_has_no_defects: choiceValue("no"), power_stability: choiceValue("no") });
+  assert.equal(brokenImac.definition.coverage, "desktop");
+  assert.deepEqual(toAstlyConditionChecks(brokenImac.definition, imac, brokenImac.answers), {
+    ...noFaults, screenLineDeadPixel: true, waterIssue: true,
+  });
+  const mini = deviceCatalog.find((device) => /^Mac mini/.test(device.model));
+  const miniInput = toAstlyEstimateInput(mini, noFaults);
+  assert.equal(miniInput.appleCategory, "Mac mini");
 });
 
 test("the server prices only catalog devices with a complete, current assessment", () => {

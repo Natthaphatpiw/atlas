@@ -18,7 +18,7 @@ export type AstlyConditionCheckKey = (typeof ASTLY_CONDITION_CHECK_KEYS)[number]
 export type AstlyConditionChecks = Record<AstlyConditionCheckKey, boolean>;
 
 export type AstlyItemType = "Apple" | "โทรศัพท์มือถือ" | "แท็บเล็ต" | "โน้ตบุค";
-export type AstlyAppleCategory = "iPhone" | "iPad" | "MacBook";
+export type AstlyAppleCategory = "iPhone" | "iPad" | "MacBook" | "iMac" | "Mac mini" | "Mac Studio" | "Mac Pro";
 
 /** Body Atlas sends to POST /api/demo/estimate. Color is omitted on purpose: it does not move price and would split Astly's cache. */
 export interface AstlyEstimateInput {
