@@ -6,6 +6,7 @@ import { EstimateRequestError, fetchEstimate, startEstimate } from "@/adapters/a
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { AppShell } from "@/components/app-shell";
 import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
+import { navigateForward } from "@/lib/forward-navigation";
 import { Button } from "@/components/ui-primitives";
 import type { AstlyConditionAssessment, AstlyEstimateJobStatus, AstlyValuation } from "@/domain/astly";
 import type { Device } from "@/domain/types";
@@ -204,7 +205,7 @@ export default function ResultPage() {
       deviceId: stored.device.id,
       timestamp: new Date().toISOString(),
     });
-    router.push("/valuation/expected-price");
+    navigateForward(router, "/valuation/expected-price");
   };
 
   const handleBack = () => {

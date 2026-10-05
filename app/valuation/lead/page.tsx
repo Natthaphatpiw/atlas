@@ -7,6 +7,7 @@ import { MockRequestService } from "@/adapters/mock/request";
 import { contactErrors, normalizeSellerContact } from "@/lib/seller-contact";
 import { AppShell } from "@/components/app-shell";
 import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
+import { navigateForward } from "@/lib/forward-navigation";
 import { Button } from "@/components/ui-primitives";
 import { hasCompletedAssessment, hasPreliminaryValuation, hasRequestPrerequisites, hasReachedStage, markRequestSubmitted, type StoredValuationSession } from "@/lib/valuation-session";
 import type { RequestService } from "@/services/request-service";
@@ -106,7 +107,7 @@ export default function LeadPage() {
         deviceId: storedSession.device.id,
         timestamp: new Date().toISOString(),
       });
-      router.push("/valuation/handoff");
+      navigateForward(router, "/valuation/handoff");
     } catch {
       setSubmitError("ยังส่งข้อมูลไม่ได้ กรุณาลองอีกครั้ง");
       submittingRef.current = false;
@@ -165,6 +166,33 @@ export default function LeadPage() {
                 </p>
               </div>
             </section>
+
+            {storedSession.session.transactionIntent === "sell_and_repurchase" ? (
+              <section aria-labelledby="repurchase-terms-title" className="atlas-flow-panel atlas-reveal atlas-reveal-delay-2 mb-8 px-5 py-5 sm:px-6">
+                <p className="text-xs font-semibold text-[var(--color-action-primary)]">ข้อมูลค่าใช้จ่ายเบื้องต้น</p>
+                <h2 id="repurchase-terms-title" className="mt-1 text-lg font-semibold text-[var(--color-foreground)]">เงื่อนไขการขายฝาก</h2>
+                <dl className="mt-5 grid gap-x-6 gap-y-5 sm:grid-cols-3">
+                  <div>
+                    <dt className="text-sm text-[var(--color-muted-foreground)]">ดอกเบี้ย</dt>
+                    <dd className="mt-1 text-xl font-semibold text-[var(--color-foreground)]">1.5% / เดือน</dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-[var(--color-muted-foreground)]">ค่าทำสัญญา / ต่อสัญญา</dt>
+                    <dd className="mt-1 text-xl font-semibold text-[var(--color-foreground)]">1.5%<span className="mt-1 block text-sm font-normal leading-6 text-[var(--color-muted-foreground)]">ชำระเมื่อทำสัญญาครั้งแรกและทุกครั้งที่ต่อสัญญารายเดือน</span></dd>
+                  </div>
+                  <div>
+                    <dt className="text-sm text-[var(--color-muted-foreground)]">ค่าดำเนินการเริ่มต้น</dt>
+                    <dd className="mt-1 text-xl font-semibold text-[var(--color-foreground)]">1.5%<span className="mt-1 block text-sm font-normal leading-6 text-[var(--color-muted-foreground)]">ชำระเฉพาะเมื่อทำสัญญาครั้งแรก</span></dd>
+                  </div>
+                </dl>
+                <div className="mt-5 border-t border-[var(--color-border-soft)] pt-5">
+                  <p className="text-sm font-medium text-[var(--color-foreground)]">การทำรายการครั้งถัดไป</p>
+                  <p className="mt-1 text-xl font-semibold text-[var(--color-foreground)]">10% ของเงินต้นแรกสุด</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--color-muted-foreground)]">ทุกครั้งที่ต่อสัญญาหรือชำระดอกเบี้ยเพื่อดำเนินสัญญาต่อ ขอปรับลดเงินต้น หรือขอเพิ่มเงินต้น ต้องชำระเงินจำนวนนี้เพื่อลดเงินต้นตามมูลค่าอุปกรณ์ที่ลดลง</p>
+                </div>
+                <p className="mt-4 text-xs leading-5 text-[var(--color-muted-foreground)]">รายละเอียดสัญญาขั้นสุดท้ายจะยืนยันในขั้นตอนถัดไป</p>
+              </section>
+            ) : null}
 
             <form noValidate onSubmit={handleSubmit} aria-busy={isSubmitting} className="atlas-reveal atlas-reveal-delay-2 mx-auto w-full max-w-[680px]">
               <fieldset disabled={isSubmitting} className="min-w-0 space-y-5">

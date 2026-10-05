@@ -1,4 +1,5 @@
 import type { CatalogDevice, CatalogSource, CatalogSpecOption } from "@/domain/device-catalog";
+import type { Device } from "@/domain/types";
 
 const mockCreatedAt = "2026-09-20T00:00:00.000Z";
 
@@ -47,6 +48,36 @@ export function phone(input: {
     },
     sources: input.sources,
     marketHints: ["Research-backed mock catalog", ...(input.regional ? ["Regional availability varies"] : [])],
+    createdAt: mockCreatedAt,
+  };
+}
+
+export function catalogItem(input: {
+  id: string;
+  category: "tablet" | "laptop" | "desktop";
+  brandId: string;
+  brand: string;
+  model: string;
+  variant?: string;
+  releaseYear: number;
+  sortOrder: number;
+  specs: Device["specs"];
+  storageOptions?: string[];
+  sources: CatalogSource[];
+}): CatalogDevice {
+  return {
+    id: input.id,
+    category: input.category,
+    brandId: input.brandId,
+    brand: input.brand,
+    model: input.model,
+    ...(input.variant ? { variant: input.variant } : {}),
+    releaseYear: input.releaseYear,
+    sortOrder: input.sortOrder,
+    specs: input.specs,
+    specOptions: input.storageOptions ? { storage: options(input.storageOptions) } : {},
+    sources: input.sources,
+    marketHints: ["Research-backed mock catalog"],
     createdAt: mockCreatedAt,
   };
 }

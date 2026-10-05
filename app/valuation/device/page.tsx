@@ -9,8 +9,9 @@ import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
 import type { CatalogDevice } from "@/domain/device-catalog";
 import type { Device, DeviceCategory } from "@/domain/types";
 import { devicePhotoErrorMessage, MAX_DEVICE_PHOTOS, removeDevicePhoto, selectDevicePhotos, type DevicePhotoSelectionError } from "@/lib/device-photos";
-import { selectableDeviceSpecs, selectedDeviceSnapshot } from "@/lib/device-selection";
+import { resolveDeviceSpecSelections, selectableDeviceSpecs, selectedDeviceSnapshot } from "@/lib/device-selection";
 import { continueWithDevice, readValuationSession, type StoredValuationSession } from "@/lib/valuation-session";
+import { navigateForward } from "@/lib/forward-navigation";
 
 type SelectionStage = "category" | "brand" | "model" | "specs" | "complete";
 type SpecKey = keyof Device["specs"];
@@ -19,7 +20,8 @@ type SelectedDevicePhoto = { id: string; file: File; previewUrl: string };
 const categoryMeta: Record<DeviceCategory, { label: string; description: string }> = {
   phone: { label: "โทรศัพท์มือถือ", description: "มือถือและสมาร์ทโฟน" },
   tablet: { label: "แท็บเล็ต", description: "แท็บเล็ตและไอแพด" },
-  laptop: { label: "แล็ปท็อป", description: "โน้ตบุ๊กและคอมพิวเตอร์" },
+  laptop: { label: "แล็ปท็อป", description: "โน้ตบุ๊กและแล็ปท็อป" },
+  desktop: { label: "คอมพิวเตอร์ตั้งโต๊ะ", description: "iMac และ Mac ตั้งโต๊ะ" },
   watch: { label: "สมาร์ทวอทช์", description: "นาฬิกาอัจฉริยะ" },
   audio: { label: "อุปกรณ์เสียง", description: "หูฟังและลำโพง" },
   other: { label: "อื่น ๆ", description: "อุปกรณ์ประเภทอื่น" },
@@ -28,8 +30,10 @@ const categoryMeta: Record<DeviceCategory, { label: string; description: string 
 const specLabels: Record<string, string> = {
   storage: "ความจุ",
   color: "สี",
+  network: "การเชื่อมต่อ",
   ram: "หน่วยความจำ",
   displaySize: "ขนาดหน้าจอ",
+  chip: "ชิป / โปรเซสเซอร์",
 };
 
 const analyticsService = new MockAnalyticsService();
@@ -100,6 +104,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
   const [editingStage, setEditingStage] = useState<SelectionStage | null>(null);
   const [selectedPhotos, setSelectedPhotos] = useState<SelectedDevicePhoto[]>([]);
   const [photoErrors, setPhotoErrors] = useState<DevicePhotoSelectionError[]>([]);
+  const [pendingScrollTarget, setPendingScrollTarget] = useState<string | null>(null);
 
   useEffect(() => {
     selectedPhotosRef.current = selectedPhotos;
@@ -134,13 +139,16 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
     [catalog, selectedModel],
   );
 
-  // Connectivity remains a catalog/default snapshot value, but is never a seller selection.
-  const selectedSpecs = selectedDevice ? selectableDeviceSpecs(selectedDevice) as [SpecKey, string][] : [];
+  const selectedSpecs = selectedDevice ? selectableDeviceSpecs(selectedDevice) : [];
+  const specResolution = selectedDevice ? resolveDeviceSpecSelections(selectedDevice, specSelections) : null;
+  const resolvedSpecs = specResolution?.selections ?? {};
+  const unresolvedChoices = specResolution?.choices ?? [];
+  const specError = Boolean(specResolution?.invalidKeys.length);
 
   const isSpecsComplete =
-    selectedSpecs.length > 0 && selectedSpecs.every(([key, value]) =>
-      selectedDevice?.specOptions?.[key]?.some((option) => option.value === specSelections[key]) ?? specSelections[key] === value,
-    );
+    selectedSpecs.length > 0 && !specError &&
+    unresolvedChoices.every(({ key }) => Boolean(resolvedSpecs[key])) &&
+    Object.keys(resolvedSpecs).length === selectedSpecs.length;
 
   const activeStage: SelectionStage = !selectedCategory
     ? "category"
@@ -153,7 +161,24 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
           : "complete";
 
   const stageIsOpen = (stage: SelectionStage) => activeStage === stage || editingStage === stage;
+  const specsStageOpen = stageIsOpen("specs") && (unresolvedChoices.length > 0 || specError);
   const isComplete = activeStage === "complete";
+
+  useEffect(() => {
+    if (!pendingScrollTarget) return;
+    const target = document.getElementById(pendingScrollTarget);
+    if (!target) return;
+    const frame = window.requestAnimationFrame(() => {
+      const headerOffset = Number.parseFloat(window.getComputedStyle(document.documentElement).getPropertyValue("--flow-header-offset")) || 0;
+      const bounds = target.getBoundingClientRect();
+      const comfortablyVisible = bounds.top >= headerOffset + 16 && bounds.bottom <= window.innerHeight - 24;
+      if (!comfortablyVisible) {
+        target.scrollIntoView({ behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "instant" : "smooth", block: "start" });
+      }
+      setPendingScrollTarget(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeStage, editingStage, pendingScrollTarget, specSelections]);
 
   const clearPhotos = () => {
     setSelectedPhotos((current) => {
@@ -171,6 +196,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
     setSearchQuery("");
     setSpecSelections({});
     setEditingStage(null);
+    setPendingScrollTarget("device-stage-brand");
   };
 
   const handleBrandChange = (brand: string) => {
@@ -179,6 +205,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
     setSelectedModel("");
     setSpecSelections({});
     setEditingStage(null);
+    setPendingScrollTarget("device-stage-model");
   };
 
   const handleModelChange = (model: string) => {
@@ -186,11 +213,19 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
     setSelectedModel(model);
     setSpecSelections({});
     setEditingStage(null);
+    const device = catalog.find((item) => item.id === model);
+    const resolution = device ? resolveDeviceSpecSelections(device, {}) : null;
+    const nextChoice = resolution?.choices[0];
+    setPendingScrollTarget(resolution?.invalidKeys.length ? "device-stage-specs" : nextChoice ? `device-spec-${nextChoice.key}` : "device-actions");
   };
 
   const handleSpecChange = (key: string, value: string) => {
-    if (specSelections[key] !== value) clearPhotos();
-    setSpecSelections((current) => ({ ...current, [key]: value }));
+    if (!selectedDevice) return;
+    if (resolvedSpecs[key] !== value) clearPhotos();
+    const next = resolveDeviceSpecSelections(selectedDevice, { ...resolvedSpecs, [key]: value });
+    setSpecSelections(next.selections);
+    const nextChoice = next.choices.find((choice) => !next.selections[choice.key]);
+    setPendingScrollTarget(next.invalidKeys.length ? "device-stage-specs" : nextChoice ? `device-spec-${nextChoice.key}` : "device-actions");
   };
 
   const handlePhotoSelection = (event: ChangeEvent<HTMLInputElement>) => {
@@ -251,13 +286,14 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
     continuing.current = true;
     const previous = readValuationSession();
     // Option lists belong to the mock catalog, not the persisted device snapshot.
-    const { brandId, releaseYear, sortOrder, sources, specOptions, ...deviceSnapshot } = selectedDevice;
+    const { brandId, releaseYear, sortOrder, sources, specOptions, configurations, ...deviceSnapshot } = selectedDevice;
     void brandId;
     void releaseYear;
     void sortOrder;
     void sources;
     void specOptions;
-    const stored = continueWithDevice(selectedDeviceSnapshot(deviceSnapshot, Object.fromEntries(selectedSpecs.map(([key]) => [key, specSelections[key]]))));
+    void configurations;
+    const stored = continueWithDevice(selectedDeviceSnapshot(deviceSnapshot, Object.fromEntries(selectedSpecs.map(([key]) => [key, resolvedSpecs[key]]))));
     const context = {
       sessionId: stored.session.id,
       route: "/valuation/device",
@@ -270,7 +306,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
       analyticsService.track({ ...context, eventName: "valuation_started" });
     }
     analyticsService.track({ ...context, eventName: "device_selected" });
-    router.push("/valuation/condition");
+    navigateForward(router, "/valuation/condition");
   };
 
   return (
@@ -335,7 +371,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
           ) : null}
 
           {stageIsOpen("brand") ? (
-            <div className="atlas-reveal atlas-bento-surface p-4 sm:p-6">
+            <div id="device-stage-brand" className="atlas-assessment-scroll-target atlas-reveal atlas-bento-surface p-4 sm:p-6">
               <StageHeading eyebrow="ขั้นตอนถัดไป" title="เลือกยี่ห้อ" />
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {brands.length > 0 ? (
@@ -372,7 +408,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
           ) : null}
 
           {stageIsOpen("model") ? (
-            <div className="atlas-reveal atlas-bento-surface p-4 sm:p-6">
+            <div id="device-stage-model" className="atlas-assessment-scroll-target atlas-reveal atlas-bento-surface p-4 sm:p-6">
               <StageHeading eyebrow="ขั้นตอนถัดไป" title="เลือกรุ่น" />
               <div className="flex flex-wrap items-end justify-between gap-3">
               <label className="block min-w-0 flex-1">
@@ -430,30 +466,31 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
             </div>
           ) : null}
 
-          {selectedDevice && isSpecsComplete && !stageIsOpen("specs") ? (
+          {selectedDevice && isSpecsComplete && !specsStageOpen ? (
             <SelectionRow
               label="ข้อมูลจำเป็น"
-              value={formatSpecs(selectedSpecs, specSelections)}
-              onEdit={() => editStage("specs")}
+              value={formatSpecs(selectedSpecs, resolvedSpecs)}
+              onEdit={unresolvedChoices.length > 0 ? () => editStage("specs") : undefined}
             />
           ) : null}
 
-          {stageIsOpen("specs") && selectedDevice ? (
-            <div className="atlas-reveal atlas-bento-surface p-4 sm:p-6">
+          {specsStageOpen && selectedDevice ? (
+            <div id="device-stage-specs" className="atlas-assessment-scroll-target atlas-reveal atlas-bento-surface p-4 sm:p-6">
               <StageHeading eyebrow="ขั้นตอนสุดท้าย" title="เลือกข้อมูลจำเป็น" />
+              {specError ? <p role="alert" className="mb-5 text-sm text-rose-700">ข้อมูลตัวเลือกของรุ่นนี้ไม่ครบ กรุณาเลือกรุ่นอื่น</p> : null}
               <div className="grid gap-3 sm:grid-cols-2">
-                {selectedSpecs.map(([key, value]) => (
-                  <div key={key} className="atlas-bento-muted p-4">
+                {unresolvedChoices.map(({ key, options }) => (
+                  <div key={key} id={`device-spec-${key}`} className="atlas-assessment-scroll-target atlas-bento-muted p-4">
                     <p className="text-sm font-medium text-[var(--color-foreground)]">{specLabels[key] ?? key}</p>
-                    {(selectedDevice.specOptions?.[key] ?? [{ id: `fixed-${key}`, value, label: value }]).map((option) => (
+                    {options.map((option) => (
                       <button
                         key={option.id}
                         type="button"
                         onClick={() => handleSpecChange(key, option.value)}
-                        aria-pressed={specSelections[key] === option.value}
+                        aria-pressed={resolvedSpecs[key] === option.value}
                         className={[
                           "atlas-focus atlas-interactive mt-3 w-full rounded-[var(--radius-control)] border px-3 py-2 text-left text-sm",
-                          specSelections[key] === option.value
+                          resolvedSpecs[key] === option.value
                             ? "border-[var(--color-action-primary)] bg-[var(--color-brand-primary-soft)] font-semibold text-[var(--color-foreground)]"
                             : "border-[var(--color-border-soft)] bg-white text-[var(--color-muted-foreground)] hover:border-[var(--color-action-primary)]",
                         ].join(" ")}
@@ -547,7 +584,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
               <p className="text-2xl font-semibold leading-8 tracking-[-0.04em] text-[var(--color-foreground)]">{selectedDevice.model}</p>
               <p className="mt-1 text-sm text-[var(--color-muted-foreground)]">{selectedBrand} · {categoryMeta[selectedDevice.category].label}</p>
               <div className="mt-5 border-t border-[var(--color-border-soft)] pt-4 text-sm text-[var(--color-muted-foreground)]">
-                <p>{isSpecsComplete ? formatSpecs(selectedSpecs, specSelections) : "เลือกข้อมูลจำเป็นต่อ"}</p>
+                <p>{isSpecsComplete ? formatSpecs(selectedSpecs, resolvedSpecs) : "เลือกข้อมูลจำเป็นต่อ"}</p>
               </div>
             </div>
           ) : (
@@ -557,7 +594,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
         </aside>
         </div>
 
-        <div className="mt-6 border-t border-[var(--color-border-soft)] pt-5 sm:mt-8 sm:pt-6">
+        <div id="device-actions" className="atlas-assessment-scroll-target mt-6 border-t border-[var(--color-border-soft)] pt-5 sm:mt-8 sm:pt-6">
           <FlowActions
             back={<FlowBack onClick={handleBack}>ย้อนกลับ</FlowBack>}
             forward={<FlowForward type="button" onClick={handleContinue} disabled={!isComplete}>ดำเนินการต่อ</FlowForward>}
@@ -568,7 +605,7 @@ function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[];
   );
 }
 
-function SelectionRow({ label, value, onEdit }: { label: string; value: string; onEdit: () => void }) {
+function SelectionRow({ label, value, onEdit }: { label: string; value: string; onEdit?: () => void }) {
   return (
     <div className="atlas-reveal flex items-center justify-between gap-3 rounded-[var(--radius-surface)] border border-[var(--color-border-soft)] bg-white px-4 py-3">
       <div className="flex min-w-0 items-center gap-3">
@@ -577,13 +614,13 @@ function SelectionRow({ label, value, onEdit }: { label: string; value: string; 
           <p className="truncate font-semibold text-[var(--color-foreground)]">{value}</p>
         </div>
       </div>
-      <button
+      {onEdit ? <button
         type="button"
         onClick={onEdit}
         className="atlas-focus atlas-interactive shrink-0 rounded-[var(--radius-control)] px-3 py-1.5 text-sm font-medium text-[var(--color-action-primary)] border border-[var(--color-action-primary)] hover:bg-[var(--color-action-primary-soft)]"
       >
         แก้ไข
-      </button>
+      </button> : null}
     </div>
   );
 }
