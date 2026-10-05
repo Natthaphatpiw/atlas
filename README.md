@@ -83,7 +83,19 @@ cp .env.example .env.local   # then set ASTLY_DEMO_API_KEY
 npm run dev
 ```
 
-`.env*` files other than `.env.example` are git-ignored. A deployment needs the same variables in its host's environment settings. Behind a proxy other than Vercel, confirm that `x-forwarded-for` cannot be set by the client, or visitor limits can be bypassed or shared.
+`.env*` files other than `.env.example` are git-ignored. A deployment needs the same variables in its host's environment settings.
+
+When Result shows "ระบบประเมินราคาไม่พร้อมใช้งานชั่วคราว", Atlas's server log says why. `[astly] demo API rejected Atlas` carries a `fix` naming the setting to change:
+
+| Status | Cause | Fix |
+| --- | --- | --- |
+| 404, HTML | The Astly deployment serving `ASTLY_API_BASE_URL` predates the demo API | Promote or deploy an Astly build that includes `/api/demo/estimate` |
+| 404, `not_found` | Astly's demo API is off | Set `DEMO_ESTIMATE_API_KEYS` in Astly's Production environment, then redeploy Astly (Vercel applies env changes to new deployments only) |
+| 401, `demo_unauthorized` | Key mismatch | Make `ASTLY_DEMO_API_KEY` equal one of Astly's `DEMO_ESTIMATE_API_KEYS` |
+| 401, other | `ASTLY_API_BASE_URL` is a protected deployment URL | Use `https://www.astly.co` |
+| 3xx | `ASTLY_API_BASE_URL` redirects (for example the apex `astly.co`), which would drop the key | Set it to the redirect's origin |
+
+`[astly] unexpected estimate response` / `unexpected job response` and `[astly] estimate request refused` carry Astly's own error `code`; Astly's logs have the details. Behind a proxy other than Vercel, confirm that `x-forwarded-for` cannot be set by the client, or visitor limits can be bypassed or shared.
 
 ## Run and validate
 

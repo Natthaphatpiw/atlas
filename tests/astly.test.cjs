@@ -246,6 +246,7 @@ test("creating an estimate authenticates to Astly server-side and validates the 
   assert.equal(calls[0].init.headers.authorization, `Bearer ${"k".repeat(40)}`);
   assert.equal(calls[0].init.headers["x-demo-visitor"], "visitor_0123456789abcdef");
   assert.deepEqual(JSON.parse(calls[0].init.body), input);
+  assert.equal(calls[0].init.redirect, "manual", "a redirect would drop the key");
 });
 
 test("Astly failures become safe Atlas errors", async () => {
@@ -259,6 +260,30 @@ test("Astly failures become safe Atlas errors", async () => {
   await expectError(createAstlyEstimate(input, "v".repeat(20)), 503, "estimate_unconfigured");
   stubFetch(404, { error: "Not found" });
   await expectError(createAstlyEstimate(input, "v".repeat(20)), 503, "estimate_unconfigured");
+
+  // Each way Astly can refuse Atlas itself names its fix in the server log.
+  const logged = [];
+  const originalError = console.error;
+  console.error = (...entry) => logged.push(entry);
+  const fixFor = async (status, body, headers) => {
+    logged.length = 0;
+    global.fetch = async () => new Response(typeof body === "string" ? body : JSON.stringify(body), { status, headers });
+    await expectError(createAstlyEstimate(input, "v".repeat(20)), 503, "estimate_unconfigured");
+    return logged[0][1].fix;
+  };
+  try {
+    assert.match(await fixFor(404, "<!DOCTYPE html><html></html>", { "content-type": "text/html" }), /no demo API \(HTML 404\).*promote/);
+    assert.match(await fixFor(404, { error: "Not found", code: "not_found" }), /DEMO_ESTIMATE_API_KEYS.*redeploy/);
+    assert.match(await fixFor(401, { error: "Unauthorized", code: "demo_unauthorized" }), /does not accept ASTLY_DEMO_API_KEY/);
+    assert.match(await fixFor(401, { message: "Protected by Vercel Authentication" }), /protected deployment/);
+    assert.match(await fixFor(308, "Redirecting...", { location: "https://www.astly.co/api/demo/estimate" }), /redirects to https:\/\/www\.astly\.co/);
+    logged.length = 0;
+    global.fetch = async () => new Response("<html></html>", { status: 404 });
+    await expectError(getAstlyEstimate("0f8fad5b-d9cb-469f-a165-70867728950e", "v".repeat(20)), 503, "estimate_unconfigured");
+    assert.match(logged[0][1].fix, /no demo API/, "a missing route is not reported as a missing job");
+  } finally {
+    console.error = originalError;
+  }
   stubFetch(400, { code: "invalid_ai_job_input" });
   await expectError(createAstlyEstimate(input, "v".repeat(20)), 422, "unsupported_device");
   stubFetch(202, { jobId: "not a job", status: "QUEUED", condition });

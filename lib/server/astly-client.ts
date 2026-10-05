@@ -37,6 +37,35 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const text = (value: unknown, max = 400) => (typeof value === "string" ? value.slice(0, max) : "");
 
+/**
+ * What an Atlas operator must fix when Astly refuses Atlas itself (as opposed
+ * to one estimate), or null for an ordinary response. The cases all look like
+ * "estimate unavailable" to visitors, so the server log has to tell them apart.
+ */
+function misconfiguration(status: number, headers: Headers, json: unknown, path: string): string | null {
+  const code = isRecord(json) && typeof json.code === "string" ? json.code : null;
+  if (status >= 300 && status < 400) {
+    let target = "another URL";
+    try {
+      target = new URL(headers.get("location") ?? "", "https://invalid.invalid").origin;
+    } catch { /* keep the generic wording */ }
+    return `ASTLY_API_BASE_URL redirects to ${target}; set it to that origin (a redirect drops the API key)`;
+  }
+  if (status === 401) {
+    return code === "demo_unauthorized"
+      ? "Astly does not accept ASTLY_DEMO_API_KEY: it must equal one of DEMO_ESTIMATE_API_KEYS in Astly's Production environment"
+      : "ASTLY_API_BASE_URL answered 401 before Astly's demo API ran (a protected deployment URL?); use https://www.astly.co";
+  }
+  if (status !== 404 || code === "job_not_found") return null;
+  if (!isRecord(json)) {
+    return "the Astly deployment at ASTLY_API_BASE_URL has no demo API (HTML 404): promote or deploy an Astly build that includes /api/demo/estimate";
+  }
+  if (code === "not_found") {
+    return "Astly's demo API is switched off: set DEMO_ESTIMATE_API_KEYS in Astly's Production environment, then redeploy Astly";
+  }
+  return path.includes("/estimate/") ? null : "Astly answered 404 for its demo API";
+}
+
 async function callAstly(path: string, visitor: string, body?: AstlyEstimateInput) {
   const key = process.env.ASTLY_DEMO_API_KEY?.trim();
   if (!key) {
@@ -56,6 +85,8 @@ async function callAstly(path: string, visitor: string, body?: AstlyEstimateInpu
       },
       body: body ? JSON.stringify(body) : undefined,
       cache: "no-store",
+      // Following a redirect would drop the Authorization header; report it instead.
+      redirect: "manual",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch {
@@ -63,9 +94,9 @@ async function callAstly(path: string, visitor: string, body?: AstlyEstimateInpu
     throw unavailable();
   }
   const json: unknown = await response.json().catch(() => null);
-  if (response.status === 401 || (response.status === 404 && !path.includes("/estimate/"))) {
-    // The key was rejected or the demo API is switched off on Astly's side.
-    console.error("[astly] demo API rejected Atlas", { status: response.status });
+  const fix = misconfiguration(response.status, response.headers, json, path);
+  if (fix) {
+    console.error("[astly] demo API rejected Atlas", { status: response.status, fix });
     throw new AstlyApiError(503, { code: "estimate_unconfigured", error: estimateMessages.unavailable });
   }
   return { status: response.status, headers: response.headers, json };
@@ -114,6 +145,8 @@ function parseStatus(value: unknown): AstlyEstimateJobStatus | null {
   return JOB_STATUSES.find((status) => status === value) ?? null;
 }
 
+const responseCode = (json: unknown) => (isRecord(json) ? text(json.code, 80) || null : null);
+
 const pollAfter = (value: unknown) => (finite(value) ? Math.min(Math.max(value, 2_000), 15_000) : 4_000);
 
 export async function createAstlyEstimate(input: AstlyEstimateInput, visitor: string): Promise<AstlyJobAccepted> {
@@ -122,9 +155,14 @@ export async function createAstlyEstimate(input: AstlyEstimateInput, visitor: st
     throw new AstlyApiError(429, { code: "rate_limited", error: estimateMessages.rateLimited, retryAfterSeconds: retryAfter(headers, json) });
   }
   if (status === 400) {
+    // Usually an item Astly cannot price; Astly's code tells a contract mismatch apart.
+    console.warn("[astly] estimate request refused", { status, code: responseCode(json) });
     throw new AstlyApiError(422, { code: "unsupported_device", error: estimateMessages.unsupported });
   }
-  if (status !== 202 || !isRecord(json)) throw unavailable();
+  if (status !== 202 || !isRecord(json)) {
+    console.error("[astly] unexpected estimate response", { status, code: responseCode(json) });
+    throw unavailable();
+  }
   const jobStatus = parseStatus(json.status);
   const condition = parseCondition(json.condition);
   if (typeof json.jobId !== "string" || !/^[0-9a-f-]{16,64}$/i.test(json.jobId) || !jobStatus || !condition) throw unavailable();
@@ -134,7 +172,10 @@ export async function createAstlyEstimate(input: AstlyEstimateInput, visitor: st
 export async function getAstlyEstimate(jobId: string, visitor: string): Promise<EstimateJobState> {
   const { status, json } = await callAstly(`/api/demo/estimate/${encodeURIComponent(jobId)}`, visitor);
   if (status === 404) throw new AstlyApiError(404, { code: "job_not_found", error: estimateMessages.jobNotFound });
-  if (status !== 200 || !isRecord(json)) throw unavailable();
+  if (status !== 200 || !isRecord(json)) {
+    console.error("[astly] unexpected job response", { status, code: responseCode(json) });
+    throw unavailable();
+  }
   const jobStatus = parseStatus(json.status);
   if (!jobStatus) throw unavailable();
   const state: EstimateJobState = { jobId, status: jobStatus, pollAfterMs: pollAfter(json.pollAfterMs) };
