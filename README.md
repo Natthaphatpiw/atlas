@@ -8,10 +8,11 @@ Atlas is a Thai-first, responsive seller valuation Frontend MVP. It collects dev
 - Progressive device selection, a saved structured Seller Device Assessment, preliminary results, safe-integer THB price entry, required transaction intent, seller contact, a mock request receipt and a prototype LINE continuation screen.
 - Device Selection optionally previews up to five seller-selected JPEG, PNG, or WebP photos (10MB each). They are browser-memory previews only: they are not uploaded, sent to Astly, valued, analyzed, included in analytics/receipts, or retained after refresh or route remounting.
 - The research-backed mock catalog contains 81 phones across 11 brands, spanning first-release years 2020–2026, plus the existing MacBook fixture. Model storage comes from manufacturer sources; verified colors remain on the Apple fixtures and the compatible Galaxy S24 Ultra snapshot. It is curated frontend UX test data, not authoritative production or region-wide inventory.
-- Valuation progress lives in browser `sessionStorage`. The only server code is two Atlas route handlers that proxy Astly's demo estimate API; they persist nothing.
+- Valuation progress lives in browser `sessionStorage`. On the web, the only server code is two Atlas route handlers that proxy Astly's demo estimate API; they persist nothing.
+- The same flow also runs inside LINE as a LIFF app under `/liff` (LINE_LIFF.md): LINE sign-in, a required Atlas OA friendship, usage recording, and real requests stored in Astly's Supabase and confirmed by a LINE message.
 - Result requests a real preliminary estimate from Astly (www.astly.co) through those routes and shows a single THB figure. Expected Price, Seller Contact and Request Submitted reuse that saved snapshot. Without Astly configuration, Result shows a temporary-unavailable error; there is no mock fallback. The fixed ฿24,500–฿27,000 fixture and the demo formula remain in the mock adapter, are no longer on the Result path and are not production pricing.
-- Contact is passed only to the in-memory mock request service. The browser session persists a non-PII mock receipt, never contact fields or consent evidence. LINE is a prototype CTA only.
-- No database, Supabase, authentication, real LINE or operational Astly handoff is implemented. The Astly integration covers the preliminary estimate only; Atlas does not own or define the pricing methodology.
+- On the web, contact is passed only to the in-memory mock request service. The browser session persists a non-PII mock receipt, never contact fields or consent evidence. LINE is a prototype CTA only there.
+- The web flow has no database, authentication or real LINE; those exist only in the LIFF app. No operational Astly handoff is implemented. The Astly integration covers the preliminary estimate only; Atlas does not own or define the pricing methodology.
 
 ## Seller routes
 
@@ -27,6 +28,8 @@ Atlas is a Thai-first, responsive seller valuation Frontend MVP. It collects dev
 | `/valuation/lead` | Seller contact and required consent for a mock request |
 | `/valuation/handoff` | Mock request receipt and prototype LINE continuation |
 
+Every route above also exists under `/liff` (`/liff`, `/liff/valuation/device`, …) as the LINE LIFF app, which is the LIFF endpoint. Pages navigate by web path; `lib/flow-navigation.tsx` keeps LIFF users under `/liff`.
+
 `/design-preview/a`, `/design-preview/b` and `/design-preview/c` are development/design artifacts, not steps in the seller flow.
 
 Server routes used by Result (not seller pages):
@@ -35,6 +38,9 @@ Server routes used by Result (not seller pages):
 | --- | --- |
 | `POST /api/valuation/estimate` | Validates the device and assessment, then starts an Astly estimate job |
 | `GET /api/valuation/estimate/[jobId]` | Polls that Astly job; requires the signed `X-Estimate-Ticket` issued when it started |
+| `POST /api/liff/session`, `GET /api/liff/session` | LIFF only: verifies the LINE ID token and issues Atlas's session token; reports and re-checks Atlas OA friendship |
+| `POST /api/liff/events` | LIFF only: stores usage events and the valuation snapshot |
+| `POST /api/liff/requests` | LIFF only: stores a submitted request and pushes the LINE confirmation |
 
 ## Architecture
 
@@ -47,7 +53,8 @@ Server routes used by Result (not seller pages):
 - `adapters/mock/`: mock catalog access, assessment definitions, the now-unused fixed range, mock request/legacy Lead and console analytics.
 - `adapters/astly/estimate-client.ts`: browser client for Atlas's own estimate routes; it never calls astly.co.
 - `lib/estimate-request-body.ts`, `lib/estimate-request.ts`, `lib/astly-estimate-input.ts`: the browser request body, its server-side re-validation, and the mapping onto Astly's request and condition checklist.
-- `lib/server/`: server-only Astly client (reads the API key) and the anonymous visitor ID.
+- `lib/server/`: server-only Astly client (reads the API key), the anonymous visitor ID, and the LIFF app's LINE auth, Messaging API, event validation and database access.
+- `app/liff/`, `components/liff/`, `lib/liff/`, `adapters/liff/`, `database/`: the LINE LIFF app and its schema (LINE_LIFF.md).
 - `lib/valuation-format.ts`: shared THB formatting; a single price when the valuation is a point estimate, otherwise a range.
 - `lib/valuation-session.ts`: browser-local `{ session, device }`, progress updates, device identity comparison and the pending/saved Astly estimate.
 - `lib/device-photos.ts`: browser-only photo selection limits and validation; it has no persistence or upload behavior.
@@ -96,7 +103,7 @@ npm run build
 npm run start
 ```
 
-`tests/astly.test.cjs` stubs `fetch`; the test suite never calls Astly.
+`tests/astly.test.cjs` and `tests/liff.test.cjs` stub `fetch`; the test suite never calls Astly, LINE or a database.
 
 An observed environment-specific Turbopack failure reports `binding to a port — Operation not permitted (os error 1)`. It is not a universal application failure. When that environment prevents the default build, the established verification fallback is:
 
@@ -121,6 +128,7 @@ The Atlas rename is product-facing. The package name `atlast`, browser key `atla
 - DATA_MODEL.md: current local model and future authoritative persistence requirements.
 - API_CONTRACT.md: service boundaries, the Astly estimate boundary, analytics semantics, provisional APIs and Backend Developer decisions.
 - ASTLY_HANDOFF.md: the current Astly valuation integration and the future LINE/operational integration boundary.
+- LINE_LIFF.md: the LINE LIFF app: LINE Developers setup, environment, database, recorded events and analytics views.
 - AGENTS.md: development constraints; consult the installed Next.js guides before source changes.
 
-Backend work must not derive production pricing from mock code or choose unresolved product/integration decisions implicitly. Database technology/schema and the final API design remain undecided.
+Backend work must not derive production pricing from mock code or choose unresolved product/integration decisions implicitly. Beyond the LIFF app's lead-capture tables (`database/atlas_liff.sql`), the database schema and final API design remain undecided.

@@ -39,13 +39,19 @@ export interface ValuationRequestInput {
   source: "atlast_web";
 }
 
-/** Browser-local receipt, not a durable backend request or consent record. */
+/**
+ * Receipt kept in the browser session. On the web it is a mock (reference
+ * MOCK-…, nothing stored on a server). In the LINE LIFF app it mirrors a
+ * request stored by Atlas's server (reference ATL-…), and lineNotified says
+ * whether the LINE confirmation message was sent.
+ */
 export interface MockRequestReceipt {
   id: string;
   reference: string;
   sessionId: string;
   state: "submitted";
   submittedAt: string;
-  lineConnection: "prototype_pending";
+  lineConnection: "prototype_pending" | "line_connected";
+  lineNotified?: boolean;
   context: RequestReceiptContext;
 }

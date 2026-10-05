@@ -83,6 +83,8 @@ export interface EstimateJobState {
   pollAfterMs: number;
   message?: string;
   result?: AstlyEstimateResult;
+  /** Atlas-signed record of a completed result (see AstlyValuation.priceReceipt). */
+  priceReceipt?: string;
   error?: string;
   code?: string;
 }
@@ -96,6 +98,10 @@ export interface EstimateApiError {
 /** An Astly estimate saved on the session's preliminary valuation. */
 export interface AstlyValuation {
   jobId: string;
+  /** Ticket for the job, so Atlas's server can re-read the result when a request is submitted. */
+  ticket?: string;
+  /** Atlas-signed record of the result, so a submitted request's price can be trusted. */
+  priceReceipt?: string;
   /** Identity of the device configuration and assessment answers it priced. */
   requestKey: string;
   condition: AstlyConditionAssessment;

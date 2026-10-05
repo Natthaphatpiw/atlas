@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useFlowRouter } from "@/lib/flow-navigation";
 import { AppShell } from "@/components/app-shell";
 import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
@@ -15,7 +15,7 @@ const primary = `atlas-interactive ${focus} w-full rounded-[var(--radius-control
 const analytics = new MockAnalyticsService();
 
 export function DeviceAssessment({ initial, definition }: { initial: StoredValuationSession; definition: AssessmentDefinition }) {
-  const router = useRouter();
+  const router = useFlowRouter();
   const existing = initial.session.assessment;
   const compatible = isCurrentAssessment(existing, definition);
   const [needsRecovery, setNeedsRecovery] = useState(!compatible && Boolean(existing || initial.session.conditionAnswers?.length || hasReachedStage(initial.session.status, "condition_completed")));

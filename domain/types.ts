@@ -161,6 +161,8 @@ export interface AnalyticsEvent {
   transactionIntent?: TransactionIntent;
   questionId?: string;
   assessmentVersion?: number;
+  /** Machine-readable reason, e.g. the error code of a failed estimate. */
+  reason?: string;
 }
 
 export type AnalyticsEventName =
@@ -172,6 +174,7 @@ export type AnalyticsEventName =
   | "expected_price_entered"
   | "transaction_intent_selected"
   | "valuation_calculated"
+  | "valuation_failed"
   | "valuation_result_viewed"
   | "seller_proceeded"
   | "seller_declined"

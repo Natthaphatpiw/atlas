@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useFlowRouter } from "@/lib/flow-navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type CSSProperties } from "react";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { MockValuationService } from "@/adapters/mock/valuation";
@@ -91,7 +91,7 @@ export default function DevicePage() {
 }
 
 function DeviceSelection({ catalog, initialDevice }: { catalog: CatalogDevice[]; initialDevice?: Device }) {
-  const router = useRouter();
+  const router = useFlowRouter();
   const continuing = useRef(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const photoSequence = useRef(0);

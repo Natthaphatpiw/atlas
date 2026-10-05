@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
+import { useFlowRouter } from "@/lib/flow-navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { AppShell } from "@/components/app-shell";
 import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
@@ -31,7 +31,7 @@ function parseStoredSession(rawSession: string | null) {
 }
 
 export default function ExpectedPricePage() {
-  const router = useRouter();
+  const router = useFlowRouter();
   const storedSessionRaw = useSyncExternalStore(noSessionSubscription, getStoredSessionRaw, () => null);
   const storedSession = useMemo(() => parseStoredSession(storedSessionRaw), [storedSessionRaw]);
   const [draftDigits, setDraftDigits] = useState<string | null>(null);

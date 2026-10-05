@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import { FlowLink } from "@/lib/flow-navigation";
 import { useEffect, useRef } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowRight02Icon } from "@hugeicons/core-free-icons";
@@ -42,9 +42,9 @@ export default function Home() {
                 ประเมินราคาสินค้า IT เบื้องต้น เพื่อช่วยให้คุณตัดสินใจได้อย่างมั่นใจ
               </p>
               <div className="mt-8 flex justify-center">
-                <Link href="/valuation/device" className="atlas-focus atlas-interactive inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--color-action-primary)] bg-[var(--color-action-primary)] px-6 py-3 text-base font-semibold text-white">
+                <FlowLink href="/valuation/device" className="atlas-focus atlas-interactive inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--color-action-primary)] bg-[var(--color-action-primary)] px-6 py-3 text-base font-semibold text-white">
                   เริ่มประเมินราคา <HugeiconsIcon icon={ArrowRight02Icon} size={19} strokeWidth={1.8} aria-hidden="true" />
-                </Link>
+                </FlowLink>
               </div>
             </div>
 

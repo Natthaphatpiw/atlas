@@ -1,4 +1,4 @@
-import type { MockRequestReceipt, ValuationRequestInput } from "@/domain/valuation-request";
+import type { MockRequestReceipt, RequestContext, RequestReceiptContext, ValuationRequestInput } from "@/domain/valuation-request";
 import type { RequestService } from "@/services/request-service";
 import { contactErrors } from "@/lib/seller-contact";
 
@@ -15,17 +15,22 @@ export class MockRequestService implements RequestService {
       state: "submitted",
       submittedAt: new Date().toISOString(),
       lineConnection: "prototype_pending",
-      context: {
-        device: structuredClone(input.context.device),
-        assessment: {
-          definitionId: input.context.assessment.definitionId,
-          version: input.context.assessment.version,
-          reviewedAt: input.context.assessment.reviewedAt,
-        },
-        preliminaryValuation: structuredClone(input.context.preliminaryValuation),
-        expectedPrice: structuredClone(input.context.expectedPrice),
-        transactionIntent: input.context.transactionIntent,
-      },
+      context: toReceiptContext(input.context),
     };
   }
+}
+
+/** The request context a receipt keeps: the assessment's identity, not its answers. */
+export function toReceiptContext(context: RequestContext): RequestReceiptContext {
+  return {
+    device: structuredClone(context.device),
+    assessment: {
+      definitionId: context.assessment.definitionId,
+      version: context.assessment.version,
+      reviewedAt: context.assessment.reviewedAt!,
+    },
+    preliminaryValuation: structuredClone(context.preliminaryValuation),
+    expectedPrice: structuredClone(context.expectedPrice),
+    transactionIntent: context.transactionIntent,
+  };
 }

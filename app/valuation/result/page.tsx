@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
+import { useFlowRouter } from "@/lib/flow-navigation";
 import { EstimateRequestError, fetchEstimate, startEstimate } from "@/adapters/astly/estimate-client";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { AppShell } from "@/components/app-shell";
@@ -63,7 +63,7 @@ const failed = (message: string, code: string, canRetry = true, retryAfterSecond
   ({ kind: "failed", message, code, canRetry, retryAfterSeconds });
 
 export default function ResultPage() {
-  const router = useRouter();
+  const router = useFlowRouter();
   const storedSessionRaw = useSyncExternalStore(noSessionSubscription, getStoredSessionRaw, () => null);
   const storedSession = useMemo(() => parseStoredSession(storedSessionRaw), [storedSessionRaw]);
   const [phase, setPhase] = useState<Phase | null>(null);
@@ -124,7 +124,9 @@ export default function ResultPage() {
             setPhase(failed("จากสภาพเครื่องที่ระบุ ระบบยังเสนอราคาให้ไม่ได้ ลองตรวจสอบคำตอบเรื่องสภาพเครื่องอีกครั้ง", "no_offer", false));
             return;
           }
-          const valuation: AstlyValuation = { jobId: job.jobId, requestKey, condition: job.condition, result };
+          const valuation: AstlyValuation = {
+            jobId: job.jobId, ticket: job.ticket, priceReceipt: state.priceReceipt, requestKey, condition: job.condition, result,
+          };
           const saved = markPreliminaryValuationAvailable({
             minPrice: result.estimatedPrice,
             maxPrice: result.estimatedPrice,
@@ -177,6 +179,21 @@ export default function ResultPage() {
     });
     return () => controller.abort();
   }, [requestKey, attempt]);
+
+  const reportedFailure = useRef<string | null>(null);
+  useEffect(() => {
+    if (phase?.kind !== "failed" || !storedSession || reportedFailure.current === `${attempt}:${phase.code}`) return;
+    reportedFailure.current = `${attempt}:${phase.code}`;
+    analyticsService.track({
+      eventName: "valuation_failed",
+      sessionId: storedSession.session.id,
+      route: "/valuation/result",
+      deviceCategory: storedSession.device.category,
+      deviceId: storedSession.device.id,
+      reason: phase.code,
+      timestamp: new Date().toISOString(),
+    });
+  }, [phase, storedSession, attempt]);
 
   useEffect(() => {
     if (phase?.kind !== "ready" || !storedSession || viewedJobId.current === phase.valuation.jobId) return;

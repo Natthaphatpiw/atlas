@@ -376,11 +376,16 @@ export function hasSubmittedRequest(stored: StoredValuationSession | null | unde
   const request = stored?.session?.request;
   return Boolean(stored && request && stored.session.status === "request_submitted" &&
     request.sessionId === stored.session.id && request.state === "submitted" &&
-    request.lineConnection === "prototype_pending" && typeof request.id === "string" &&
-    /^MOCK-[A-F0-9]{8}$/.test(request.reference) && typeof request.submittedAt === "string" &&
+    hasReceiptIdentity(request) && typeof request.id === "string" && typeof request.submittedAt === "string" &&
     request.context?.device && request.context?.assessment && request.context?.expectedPrice && request.context?.transactionIntent &&
     request.context?.preliminaryValuation && hasRequestPrerequisites(stored) &&
     requestContextMatches(stored, request.context));
+}
+
+// A web receipt is a local mock; a LIFF receipt names a request Atlas's server stored.
+function hasReceiptIdentity(request: MockRequestReceipt) {
+  return (request.lineConnection === "prototype_pending" && /^MOCK-[A-F0-9]{8}$/.test(request.reference)) ||
+    (request.lineConnection === "line_connected" && /^ATL-[A-F0-9]{8}$/.test(request.reference));
 }
 
 function requestContextMatches(stored: StoredValuationSession, context: RequestReceiptContext) {
@@ -405,7 +410,7 @@ export function markRequestSubmitted(request: MockRequestReceipt) {
   if (!stored || !hasRequestPrerequisites(stored)) return null;
   if (stored.session.request) return hasSubmittedRequest(stored) ? stored : null;
   if (request.sessionId !== stored.session.id || request.state !== "submitted" ||
-      request.lineConnection !== "prototype_pending" || !requestContextMatches(stored, request.context)) return null;
+      !hasReceiptIdentity(request) || !requestContextMatches(stored, request.context)) return null;
   const updated: StoredValuationSession = {
     ...stored,
     session: { ...stored.session, status: "request_submitted", request, updatedAt: new Date().toISOString() },

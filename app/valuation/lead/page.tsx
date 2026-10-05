@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
+import { useFlowChannel, useFlowRouter } from "@/lib/flow-navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
-import { MockRequestService } from "@/adapters/mock/request";
+import { ChannelRequestService } from "@/adapters/channel-request";
 import { contactErrors, normalizeSellerContact } from "@/lib/seller-contact";
 import { AppShell } from "@/components/app-shell";
 import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
@@ -13,7 +13,7 @@ import { hasCompletedAssessment, hasPreliminaryValuation, hasRequestPrerequisite
 import type { RequestService } from "@/services/request-service";
 import { formatDeviceSpecs, formatValuation } from "@/lib/valuation-format";
 
-const requestService: RequestService = new MockRequestService();
+const requestService: RequestService = new ChannelRequestService();
 const analyticsService = new MockAnalyticsService();
 const noSessionSubscription = () => () => undefined;
 const inputClass = "mt-2 min-h-14 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-base text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[var(--color-brand-primary)] focus:ring-2 focus:ring-[var(--color-brand-primary-glow)] aria-invalid:border-rose-400";
@@ -31,7 +31,9 @@ function parseStoredSession(raw: string | null): StoredValuationSession | null {
 }
 
 export default function LeadPage() {
-  const router = useRouter();
+  const router = useFlowRouter();
+  // In the LINE LIFF app the request is stored for real and the user's LINE account is already known.
+  const inLiff = useFlowChannel() === "liff";
   const raw = useSyncExternalStore(noSessionSubscription, getStoredSessionRaw, () => null);
   const storedSession = useMemo(() => parseStoredSession(raw), [raw]);
   const [fullName, setFullName] = useState("");
@@ -53,7 +55,7 @@ export default function LeadPage() {
   const hasPrerequisites = hasRequestPrerequisites(storedSession);
   const mockResult = hasPrerequisites ? storedSession?.session.preliminaryValuation ?? null : null;
 
-  const contact = normalizeSellerContact({ fullName, phone, lineIdProvided: lineId, consentToContact: consent });
+  const contact = normalizeSellerContact({ fullName, phone, lineIdProvided: inLiff ? undefined : lineId, consentToContact: consent });
   const { name: nameError, phone: phoneError, consent: consentError } = contactErrors(contact);
   useEffect(() => {
     if (!storedSession || !mockResult || !hasPrerequisites || viewed.current === storedSession.session.id) return;
@@ -129,7 +131,7 @@ export default function LeadPage() {
   return (
     <AppShell
       title="ข้อมูลติดต่อผู้ขาย"
-      description="กรอกข้อมูลติดต่อก่อนส่งคำขอประเมินสินค้า แล้วจึงเชื่อมต่อ LINE ในขั้นตอนถัดไป"
+      description={inLiff ? "กรอกข้อมูลติดต่อเพื่อส่งคำขอ เราจะส่งข้อความยืนยันไปที่ LINE ของคุณ" : "กรอกข้อมูลติดต่อก่อนส่งคำขอประเมินสินค้า แล้วจึงเชื่อมต่อ LINE ในขั้นตอนถัดไป"}
       compactHeader
       contentSize="financial"
       flowStage="contact"
@@ -147,7 +149,9 @@ export default function LeadPage() {
           <p role="status" className="py-10 text-center text-sm text-slate-500">กำลังเตรียมข้อมูลการประเมิน...</p>
         ) : (
           <>
-            <p className="atlas-reveal mb-4 text-sm leading-6 text-slate-600">นี่คือต้นแบบการส่งคำขอ ยังไม่ส่งข้อมูลให้เจ้าหน้าที่หรือบันทึกบนเซิร์ฟเวอร์ ข้อมูลติดต่อใช้เฉพาะการทดลองครั้งนี้และไม่เก็บในเบราว์เซอร์หลังส่ง</p>
+            <p className="atlas-reveal mb-4 text-sm leading-6 text-slate-600">{inLiff
+              ? "ข้อมูลที่ส่งจะถูกบันทึกเพื่อให้ทีม Atlas ติดต่อกลับเกี่ยวกับสินค้านี้ และเราจะส่งสรุปคำขอไปที่แชต LINE Atlas ของคุณ"
+              : "นี่คือต้นแบบการส่งคำขอ ยังไม่ส่งข้อมูลให้เจ้าหน้าที่หรือบันทึกบนเซิร์ฟเวอร์ ข้อมูลติดต่อใช้เฉพาะการทดลองครั้งนี้และไม่เก็บในเบราว์เซอร์หลังส่ง"}</p>
             <p className="atlas-reveal mb-2 flex items-center gap-2 text-xs font-medium text-slate-500">
               <span aria-hidden="true" className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-brand-primary-soft)] text-[var(--color-action-primary)]">✓</span>
               ประเมินเบื้องต้นเรียบร้อยแล้ว
@@ -215,12 +219,12 @@ export default function LeadPage() {
                     className={inputClass} />
                   {showPhoneError ? <p id="lead-phone-error" aria-live="polite" className="mt-2 text-sm text-rose-700">{phoneError}</p> : null}
                 </div>
-                <div>
+                {inLiff ? null : <div>
                   <label htmlFor="lead-line-id" className="text-sm font-medium text-slate-700">LINE ID <span className="font-normal text-slate-500">(ไม่บังคับ)</span></label>
                   <input id="lead-line-id" name="lineIdProvided" type="text" autoComplete="off" value={lineId}
                     onChange={(event) => setLineId(event.target.value)} aria-describedby="lead-line-help" className={inputClass} />
                   <p id="lead-line-help" className="mt-2 text-xs leading-6 text-slate-500">ระบุเป็นข้อมูลติดต่อได้หากต้องการ ยังไม่ได้ยืนยันว่าเป็นบัญชีของคุณ และไม่ถือว่าเชื่อมต่อ LINE หรือเพิ่มเพื่อน Atlas แล้ว</p>
-                </div>
+                </div>}
                 <div className="pt-1">
                   <label htmlFor="lead-consent" className="flex min-h-11 cursor-pointer items-start gap-3 py-2 text-sm leading-6 text-slate-600">
                     <input ref={consentRef} id="lead-consent" name="consent" type="checkbox" required checked={consent}

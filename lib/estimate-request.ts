@@ -1,6 +1,6 @@
 import { getMockAssessment } from "@/adapters/mock/assessment";
 import { deviceCatalog } from "@/data/devices";
-import type { AssessmentAnswer } from "@/domain/assessment";
+import type { AssessmentAnswer, AssessmentDefinition } from "@/domain/assessment";
 import type { AstlyEstimateInput } from "@/domain/astly";
 import type { Device } from "@/domain/types";
 import { assessmentComplete, isCurrentAssessment } from "@/lib/assessment";
@@ -12,13 +12,21 @@ const MAX_ANSWERS = 100;
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
+export interface ValuationSelection {
+  device: Device;
+  definition: AssessmentDefinition;
+  answers: AssessmentAnswer[];
+  /** Exactly what Astly prices for this device and assessment. */
+  input: AstlyEstimateInput;
+}
+
 /**
  * Validates an EstimateRequestBody (lib/estimate-request-body.ts) and is the
  * server-side authority for what gets priced: the device must be a catalog
  * entry with catalog spec values, and the assessment must be complete for the
  * current definition. Browser-supplied scores or labels are never trusted.
  */
-export function parseEstimateRequest(raw: unknown): AstlyEstimateInput | null {
+export function parseValuationSelection(raw: unknown): ValuationSelection | null {
   if (!isRecord(raw) || typeof raw.deviceId !== "string" || !isRecord(raw.specs) || !isRecord(raw.assessment)) return null;
   const catalogDevice = deviceCatalog.find((device) => device.id === raw.deviceId);
   if (!catalogDevice) return null;
@@ -43,9 +51,15 @@ export function parseEstimateRequest(raw: unknown): AstlyEstimateInput | null {
   if (!isCurrentAssessment(assessment, definition) || !assessmentComplete(definition, device, assessment.answers)) return null;
 
   try {
-    return toAstlyEstimateInput(device, toAstlyConditionChecks(definition, device, assessment.answers));
+    const input = toAstlyEstimateInput(device, toAstlyConditionChecks(definition, device, assessment.answers));
+    return { device, definition, answers: assessment.answers, input };
   } catch (error) {
     if (error instanceof UnsupportedDeviceError) return null;
     throw error;
   }
+}
+
+/** The Astly request for a validated EstimateRequestBody, or null when it is invalid. */
+export function parseEstimateRequest(raw: unknown): AstlyEstimateInput | null {
+  return parseValuationSelection(raw)?.input ?? null;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
+import { useFlowRouter } from "@/lib/flow-navigation";
 import { MockValuationService } from "@/adapters/mock/valuation";
 import { AppShell } from "@/components/app-shell";
 import { DeviceAssessment } from "@/components/device-assessment";
@@ -14,7 +14,7 @@ const noSubscription = () => () => undefined;
 const getRaw = () => window.sessionStorage.getItem("atlast.valuation.session");
 
 export default function ConditionPage() {
-  const router = useRouter();
+  const router = useFlowRouter();
   const raw = useSyncExternalStore(noSubscription, getRaw, () => null);
   const stored = useMemo(() => {
     try {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useSyncExternalStore, type ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useFlowPathname, useFlowRouter } from "@/lib/flow-navigation";
 import { AppShell } from "@/components/app-shell";
 import { Button } from "@/components/ui-primitives";
 import { hasSubmittedRequest, startNewValuation, type StoredValuationSession } from "@/lib/valuation-session";
@@ -13,8 +13,8 @@ const getRaw = () => window.sessionStorage.getItem("atlast.valuation.session");
 // A submitted mock request is immutable for this browser session. Do not mount
 // earlier forms, including during hydration, where they could mutate its context.
 export default function ValuationLayout({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const router = useRouter();
+  const pathname = useFlowPathname();
+  const router = useFlowRouter();
   const hydrated = useSyncExternalStore(noSubscription, () => true, () => false);
   const raw = useSyncExternalStore(noSubscription, getRaw, () => null);
   const heading = useRef<HTMLHeadingElement>(null);

@@ -1,5 +1,6 @@
 import type { EstimateApiError, EstimateJobAccepted, EstimateJobState } from "@/domain/astly";
 import type { EstimateRequestBody } from "@/lib/estimate-request-body";
+import { liffAuthHeaders } from "@/lib/liff/auth";
 
 // Browser client for Atlas's own estimate routes, which proxy Astly server-side.
 
@@ -29,7 +30,8 @@ export function startEstimate(requestKey: string, body: EstimateRequestBody): Pr
   if (existing) return existing;
   const started = fetch("/api/valuation/estimate", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    // In the LINE LIFF app, Astly meters the signed-in LINE user instead of the network.
+    headers: { "content-type": "application/json", ...liffAuthHeaders() },
     body: JSON.stringify(body),
     cache: "no-store",
   })

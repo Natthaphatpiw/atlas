@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useSyncExternalStore, type CSSProperties } from "react";
-import { useRouter } from "next/navigation";
+import { useFlowRouter } from "@/lib/flow-navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { AppShell } from "@/components/app-shell";
 import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
@@ -27,7 +27,7 @@ const options: Array<{ value: TransactionIntent; label: string; description: str
 ];
 
 export default function TransactionIntentPage() {
-  const router = useRouter();
+  const router = useFlowRouter();
   const raw = useSyncExternalStore(noSubscription, getRaw, () => null);
   const stored = useMemo(() => {
     try { return raw ? JSON.parse(raw) as StoredValuationSession : null; } catch { return null; }

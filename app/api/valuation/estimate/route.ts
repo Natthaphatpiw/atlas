@@ -1,6 +1,7 @@
 import { parseEstimateRequest } from "@/lib/estimate-request";
 import { astlyErrorResponse, createAstlyEstimate, estimateMessages } from "@/lib/server/astly-client";
-import { issueEstimateTicket, visitorId } from "@/lib/server/visitor";
+import { readLiffSession } from "@/lib/server/liff-auth";
+import { estimateInputHash, issueEstimateTicket, lineVisitorId, visitorId } from "@/lib/server/visitor";
 
 const MAX_BODY_BYTES = 32 * 1024;
 const NO_STORE = { "Cache-Control": "no-store" };
@@ -20,9 +21,12 @@ export async function POST(request: Request) {
   if (!input) return invalid();
 
   try {
-    const visitor = visitorId(request.headers);
+    // Inside the LINE LIFF app the signed-in LINE user is the visitor Astly meters.
+    const liffUser = readLiffSession(request);
+    const visitor = liffUser ? lineVisitorId(liffUser.userId) : visitorId(request.headers);
     const accepted = await createAstlyEstimate(input, visitor);
-    return Response.json({ ...accepted, ticket: issueEstimateTicket(accepted.jobId, visitor) }, { status: 202, headers: NO_STORE });
+    const ticket = issueEstimateTicket(accepted.jobId, visitor, Date.now(), estimateInputHash(input));
+    return Response.json({ ...accepted, ticket }, { status: 202, headers: NO_STORE });
   } catch (error) {
     return astlyErrorResponse(error);
   }

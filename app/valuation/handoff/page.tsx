@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { Message01Icon } from "@hugeicons/core-free-icons";
-import { useRouter } from "next/navigation";
+import { useFlowChannel, useFlowRouter } from "@/lib/flow-navigation";
+import { finishLiffVisit } from "@/lib/liff/close";
 import { AppShell } from "@/components/app-shell";
 import { SuccessAnimation } from "@/components/success-animation";
 import { Button } from "@/components/ui-primitives";
@@ -20,7 +21,9 @@ function formatPrice(value: number) {
 }
 
 export default function ConnectLinePage() {
-  const router = useRouter();
+  const router = useFlowRouter();
+  const inLiff = useFlowChannel() === "liff";
+  const [closeUnavailable, setCloseUnavailable] = useState(false);
   const raw = useSyncExternalStore(noSubscription, getRaw, () => null);
   const stored = useMemo(() => {
     try { return raw ? JSON.parse(raw) as StoredValuationSession : null; } catch { return null; }
@@ -70,7 +73,11 @@ export default function ConnectLinePage() {
           </div>
           <p className="text-sm font-semibold text-[var(--color-action-primary)]">Atlas · คำขอประเมิน</p>
           <h2 ref={heading} tabIndex={-1} className="mt-2 text-3xl font-semibold tracking-[-0.06em] text-[var(--color-foreground)] sm:text-4xl">ส่งคำขอประเมินเรียบร้อยแล้ว</h2>
-          <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-[var(--color-muted-foreground)]">เราได้บันทึกข้อมูลอุปกรณ์ สภาพ และราคาที่คุณต้องการไว้ในคำขอนี้แล้ว ขั้นตอนถัดไปคือเลือกช่องทางรับการอัปเดต</p>
+          <p className="mx-auto mt-4 max-w-xl text-base leading-7 text-[var(--color-muted-foreground)]">{!inLiff
+            ? "เราได้บันทึกข้อมูลอุปกรณ์ สภาพ และราคาที่คุณต้องการไว้ในคำขอนี้แล้ว ขั้นตอนถัดไปคือเลือกช่องทางรับการอัปเดต"
+            : request.lineNotified
+              ? "เราได้บันทึกข้อมูลอุปกรณ์ สภาพ และราคาที่คุณต้องการแล้ว และส่งสรุปคำขอไปที่แชต LINE Atlas ของคุณแล้ว ทีมงานจะติดต่อกลับโดยเร็วที่สุด"
+              : "เราได้บันทึกข้อมูลอุปกรณ์ สภาพ และราคาที่คุณต้องการแล้ว ทีมงาน Atlas จะติดต่อกลับตามข้อมูลที่คุณให้ไว้โดยเร็วที่สุด"}</p>
         </div>
 
         <section aria-label="เลขอ้างอิงคำขอ" className="mt-8 rounded-[var(--radius-surface)] border border-[var(--color-action-primary)] bg-[var(--color-surface-subtle)] p-5 shadow-[var(--shadow-tactile-sm)] sm:flex sm:items-end sm:justify-between sm:gap-6">
@@ -90,13 +97,23 @@ export default function ConnectLinePage() {
             <div><dt className="text-[var(--color-muted-foreground)]">ราคาประเมินเบื้องต้น</dt><dd className="atlas-numeric mt-1 font-semibold text-[var(--color-foreground)]">{formatValuation(request.context.preliminaryValuation)}</dd></div>
           </dl>
         </section>
-        <div className="mt-8 grid gap-3 border-t border-[var(--color-border-soft)] pt-6 sm:grid-cols-2">
-          <Button onClick={() => { startNewValuation(); router.push("/valuation/device"); }}>ประเมินสินค้าอื่น</Button>
-          <Button tone="secondary" className="!text-[var(--color-action-primary)]" onClick={() => router.push("/")}>กลับหน้าแรก</Button>
-        </div>
+        {inLiff ? (
+          <div className="mt-8 border-t border-[var(--color-border-soft)] pt-6">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Button onClick={async () => { if (!await finishLiffVisit("handoff")) setCloseUnavailable(true); }}>ปิดหน้าต่าง</Button>
+              <Button tone="secondary" className="!text-[var(--color-action-primary)]" onClick={() => { startNewValuation(); router.push("/valuation/device"); }}>ประเมินสินค้าอื่น</Button>
+            </div>
+            {closeUnavailable ? <p role="status" className="mt-4 text-center text-sm leading-6 text-[var(--color-muted-foreground)]">ส่งคำขอเรียบร้อยแล้ว ปิดแท็บนี้ได้เลย</p> : null}
+          </div>
+        ) : (
+          <div className="mt-8 grid gap-3 border-t border-[var(--color-border-soft)] pt-6 sm:grid-cols-2">
+            <Button onClick={() => { startNewValuation(); router.push("/valuation/device"); }}>ประเมินสินค้าอื่น</Button>
+            <Button tone="secondary" className="!text-[var(--color-action-primary)]" onClick={() => router.push("/")}>กลับหน้าแรก</Button>
+          </div>
+        )}
       </section>
 
-      <section aria-labelledby="line-heading" className="atlas-flow-panel-muted atlas-reveal atlas-reveal-delay-2 mt-6 p-6 sm:p-8">
+      {inLiff ? null : <section aria-labelledby="line-heading" className="atlas-flow-panel-muted atlas-reveal atlas-reveal-delay-2 mt-6 p-6 sm:p-8">
         <div className="max-w-2xl">
           <div className="flex items-center gap-3">
             <HugeiconsIcon icon={Message01Icon} size={23} strokeWidth={1.8} className="text-[var(--color-action-primary)]" aria-hidden="true" />
@@ -115,9 +132,11 @@ export default function ConnectLinePage() {
           </Button>
           <p id="line-prototype" role="status" className="mt-4 text-sm leading-6 text-[var(--color-muted-foreground)]">{placeholder ? "ต้นแบบนี้ยังไม่เปิดการเชื่อมต่อ LINE ไม่มีการเชื่อมบัญชี เพิ่มเพื่อน หรือส่งข้อความ คำขอของคุณยังอยู่และไม่ต้องส่งใหม่" : "การเชื่อมต่อ LINE ยังไม่เปิดใช้งานในต้นแบบนี้"}</p>
         </div>
-      </section>
+      </section>}
 
-      <p className="mt-5 text-center text-xs leading-6 text-[var(--color-subtle-foreground)]">คำขอจำลองนี้เก็บในเซสชันเบราว์เซอร์ ยังไม่ได้ส่งถึงเจ้าหน้าที่หรือบันทึกบนเซิร์ฟเวอร์ และไม่แสดงข้อมูลติดต่อของคุณในหน้านี้</p>
+      <p className="mt-5 text-center text-xs leading-6 text-[var(--color-subtle-foreground)]">{inLiff
+        ? "ข้อมูลติดต่อของคุณใช้เพื่อให้ทีม Atlas ติดต่อกลับเกี่ยวกับคำขอนี้เท่านั้น และไม่แสดงในหน้านี้"
+        : "คำขอจำลองนี้เก็บในเซสชันเบราว์เซอร์ ยังไม่ได้ส่งถึงเจ้าหน้าที่หรือบันทึกบนเซิร์ฟเวอร์ และไม่แสดงข้อมูลติดต่อของคุณในหน้านี้"}</p>
     </div>
   </AppShell>;
 }

@@ -1,4 +1,5 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import type { AstlyEstimateInput } from "@/domain/astly";
 import { AstlyApiError, estimateMessages } from "@/lib/server/astly-client";
 
 // Atlas-only secret. It must differ from ASTLY_DEMO_API_KEY: Astly holds that
@@ -14,6 +15,9 @@ function visitorSecret(): string {
 
 const hmac = (label: string, value: string) =>
   createHmac("sha256", visitorSecret()).update(`${label}:${value}`).digest("base64url");
+
+/** HMAC under ATLAS_VISITOR_SECRET; the label keeps each use's signatures apart. */
+export const signAtlasValue = hmac;
 
 /** One network: an IPv4 address, or the /64 an IPv6 host can freely rotate within. */
 export function clientNetwork(headers: Headers): string {
@@ -37,6 +41,20 @@ export function visitorId(headers: Headers): string {
   return hmac("atlas-visitor-v1", clientNetwork(headers)).slice(0, 32);
 }
 
+/**
+ * Opaque visitor ID for a LINE user signed in to the LIFF app. Astly then
+ * meters that LINE account rather than its network, which mobile carriers
+ * share between many users.
+ */
+export function lineVisitorId(lineUserId: string): string {
+  return hmac("atlas-visitor-line-v1", lineUserId).slice(0, 32);
+}
+
+/** Identity of the Astly request a job priced, carried in its ticket. */
+export function estimateInputHash(input: AstlyEstimateInput): string {
+  return createHash("sha256").update(JSON.stringify(input)).digest("base64url").slice(0, 22);
+}
+
 const TICKET_MAX_AGE_MS = 3 * 60 * 60 * 1000;
 
 /**
@@ -45,13 +63,19 @@ const TICKET_MAX_AGE_MS = 3 * 60 * 60 * 1000;
  * keep polling its own job from any network; only starting a job is metered
  * by the current network.
  */
-export function issueEstimateTicket(jobId: string, visitor: string, now = Date.now()): string {
-  const payload = Buffer.from(JSON.stringify({ j: jobId, v: visitor, t: now })).toString("base64url");
+export function issueEstimateTicket(jobId: string, visitor: string, now = Date.now(), inputHash?: string): string {
+  const payload = Buffer.from(JSON.stringify({ j: jobId, v: visitor, t: now, ...(inputHash ? { k: inputHash } : {}) })).toString("base64url");
   return `${payload}.${hmac("atlas-ticket-v1", payload)}`;
 }
 
 /** The visitor a ticket was issued to, or null if it is forged, expired or for another job. */
 export function readEstimateTicket(ticket: string | null, jobId: string, now = Date.now()): string | null {
+  return readEstimateTicketClaims(ticket, jobId, now)?.visitor ?? null;
+}
+
+/** A valid ticket's visitor and, for tickets issued since LIFF support, the hash of the input it priced. */
+export function readEstimateTicketClaims(ticket: string | null | undefined, jobId: string, now = Date.now()):
+  { visitor: string; inputHash?: string } | null {
   if (!ticket || ticket.length > 1024) return null;
   const [payload, signature, extra] = ticket.split(".");
   if (!payload || !signature || extra !== undefined) return null;
@@ -59,9 +83,49 @@ export function readEstimateTicket(ticket: string | null, jobId: string, now = D
   const presented = Buffer.from(signature);
   if (expected.length !== presented.length || !timingSafeEqual(expected, presented)) return null;
   try {
-    const { j, v, t } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { j?: unknown; v?: unknown; t?: unknown };
+    const { j, v, t, k } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { j?: unknown; v?: unknown; t?: unknown; k?: unknown };
     if (j !== jobId || typeof v !== "string" || typeof t !== "number" || now - t > TICKET_MAX_AGE_MS || t > now + 60_000) return null;
-    return v;
+    return typeof k === "string" ? { visitor: v, inputHash: k } : { visitor: v };
+  } catch {
+    return null;
+  }
+}
+
+const PRICE_RECEIPT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+export interface PriceReceipt {
+  estimatedPrice: number;
+  marketPrice: number;
+  pawnPrice: number;
+  /** Astly's condition multiplier, 0–1. */
+  condition: number;
+}
+
+/**
+ * Atlas's signed record of a completed Astly result for one priced input,
+ * issued when polling sees it. A LIFF submission presents it so the server can
+ * trust the price without asking Astly again (Astly keeps jobs two hours).
+ */
+export function issuePriceReceipt(jobId: string, inputHash: string, price: PriceReceipt, now = Date.now()): string {
+  const { estimatedPrice: e, marketPrice: m, pawnPrice: p, condition: c } = price;
+  const payload = Buffer.from(JSON.stringify({ j: jobId, k: inputHash, e, m, p, c, t: now })).toString("base64url");
+  return `${payload}.${hmac("atlas-price-v1", payload)}`;
+}
+
+/** The price a receipt vouches for, or null if it is forged, expired, or for another job or input. */
+export function readPriceReceipt(receipt: unknown, jobId: string, inputHash: string, now = Date.now()): PriceReceipt | null {
+  if (typeof receipt !== "string" || receipt.length > 1024) return null;
+  const [payload, signature, extra] = receipt.split(".");
+  if (!payload || !signature || extra !== undefined) return null;
+  const expected = Buffer.from(hmac("atlas-price-v1", payload));
+  const presented = Buffer.from(signature);
+  if (expected.length !== presented.length || !timingSafeEqual(expected, presented)) return null;
+  try {
+    const { j, k, e, m, p, c, t } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
+    const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+    if (j !== jobId || k !== inputHash || !finite(t) || now - t > PRICE_RECEIPT_MAX_AGE_MS || t > now + 60_000) return null;
+    if (!finite(e) || !finite(m) || !finite(p) || !finite(c) || e <= 0) return null;
+    return { estimatedPrice: e, marketPrice: m, pawnPrice: p, condition: c };
   } catch {
     return null;
   }

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { FlowLink } from "@/lib/flow-navigation";
 import type { ReactNode } from "react";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { ArrowLeft02Icon } from "@hugeicons/core-free-icons";
@@ -43,9 +43,9 @@ export function AppShell({
           <div className={flowStage ? "flex flex-wrap items-center gap-x-3 gap-y-3 sm:grid sm:grid-cols-[1fr_minmax(20rem,34rem)_1fr] sm:gap-6" : "flex items-center justify-between gap-3"}>
             <div className="flex min-w-0 items-center gap-3">
               {compactHeader && showHeaderBack ? backAction ?? (
-                <Link href="/" aria-label="กลับหน้าแรก" className="atlas-focus atlas-interactive inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] border border-transparent text-[var(--color-foreground)]">
+                <FlowLink href="/" aria-label="กลับหน้าแรก" className="atlas-focus atlas-interactive inline-flex h-11 w-11 items-center justify-center rounded-[var(--radius-control)] border border-transparent text-[var(--color-foreground)]">
                   <HugeiconsIcon icon={ArrowLeft02Icon} size={20} strokeWidth={1.8} aria-hidden="true" />
-                </Link>
+                </FlowLink>
               ) : null}
               <AtlasBrand />
             </div>
@@ -54,9 +54,9 @@ export function AppShell({
 
             {!compactHeader ? (
               <nav className="flex justify-end text-sm">
-                <Link href="/valuation" className="atlas-focus atlas-interactive inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--color-border-strong)] bg-white px-4 py-2 font-semibold text-[var(--color-foreground)]">
+                <FlowLink href="/valuation" className="atlas-focus atlas-interactive inline-flex min-h-11 items-center rounded-[var(--radius-control)] border border-[var(--color-border-strong)] bg-white px-4 py-2 font-semibold text-[var(--color-foreground)]">
                   เริ่มประเมินราคา
-                </Link>
+                </FlowLink>
               </nav>
             ) : flowStage ? <div className="hidden sm:block" aria-hidden="true" /> : null}
           </div>
