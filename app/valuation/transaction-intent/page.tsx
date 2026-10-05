@@ -22,7 +22,7 @@ const options: Array<{ value: TransactionIntent; label: string; description: str
   {
     value: "sell_and_repurchase",
     label: "ต้องการขายฝาก",
-    description: "แสดงความสนใจในแนวทางที่อาจรับอุปกรณ์คืนภายหลัง โดยรายละเอียดจะต้องยืนยันในขั้นตอนถัดไป",
+    description: "ได้เงินก่อน และซื้อเครื่องคืนได้ภายในเวลาที่ตกลงกัน",
   },
 ];
 
@@ -89,11 +89,39 @@ export default function TransactionIntentPage() {
                 );
               })}
             </fieldset>
+            <div aria-live="polite">{selected === "sell_and_repurchase" ? <RepurchaseHint /> : null}</div>
             <div className="atlas-reveal atlas-reveal-delay-2 mt-6"><FlowActions back={<FlowBack onClick={() => router.push("/valuation/expected-price")} />} forward={<FlowForward type="button" disabled={!selected} onClick={handleContinue}>ดำเนินการต่อ</FlowForward>} /></div>
           </section>
         )}
       </div>
     </AppShell>
+  );
+}
+
+// Plain-language explanation shown when the seller picks ขายฝาก.
+function RepurchaseHint() {
+  const points = [
+    "ส่งมอบเครื่องให้ผู้รับซื้อ และได้รับเงินก้อนไปใช้ก่อน",
+    "ซื้อเครื่องคืนได้ภายในระยะเวลาที่ตกลงกัน โดยชำระยอดที่ยังค้างอยู่ พร้อมดอกเบี้ยและค่าธรรมเนียมตามสัญญา",
+    "ถ้ายังไม่พร้อมซื้อคืน ขอต่อสัญญาได้ โดยชำระดอกเบี้ย ค่าธรรมเนียม และเงินต้นบางส่วนก่อนครบกำหนด",
+    "ถ้าไม่ซื้อคืนภายในกำหนด เครื่องจะเป็นของผู้รับซื้อ",
+  ];
+  return (
+    <section aria-labelledby="repurchase-hint-title" className="atlas-flow-panel-muted atlas-reveal mt-5 px-5 py-5 sm:px-6">
+      <h3 id="repurchase-hint-title" className="text-base font-semibold text-slate-900">ขายฝากคืออะไร?</h3>
+      <p className="mt-1.5 text-sm leading-6 text-slate-600">
+        ขายเครื่องพร้อมสิทธิ์ซื้อคืน เหมาะเมื่อต้องการเงินตอนนี้ แต่ยังอยากได้เครื่องกลับมาใช้ ต่างจากขายขาดที่ขายแล้วไม่ได้เครื่องคืน
+      </p>
+      <ol className="mt-4 space-y-2.5">
+        {points.map((point, index) => (
+          <li key={point} className="flex gap-3 text-sm leading-6 text-slate-700">
+            <span aria-hidden="true" className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--color-brand-primary-soft)] text-xs font-semibold text-[var(--color-action-primary)]">{index + 1}</span>
+            <span>{point}</span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-4 text-xs leading-5 text-slate-500">อัตราดอกเบี้ยและค่าธรรมเนียมเบื้องต้นจะแสดงในขั้นตอนถัดไป และยืนยันอีกครั้งก่อนทำสัญญา</p>
+    </section>
   );
 }
 

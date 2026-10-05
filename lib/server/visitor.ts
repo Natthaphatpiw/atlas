@@ -1,5 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { AstlyEstimateInput } from "@/domain/astly";
+import { usedMarketPrice } from "@/lib/used-price";
 import { AstlyApiError, estimateMessages } from "@/lib/server/astly-client";
 
 // Atlas-only secret. It must differ from ASTLY_DEMO_API_KEY: Astly holds that
@@ -124,7 +125,8 @@ export function readPriceReceipt(receipt: unknown, jobId: string, inputHash: str
     const { j, k, e, m, p, c, t } = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
     const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
     if (j !== jobId || k !== inputHash || !finite(t) || now - t > PRICE_RECEIPT_MAX_AGE_MS || t > now + 60_000) return null;
-    if (!finite(e) || !finite(m) || !finite(p) || !finite(c) || e <= 0) return null;
+    // Valid only if it yields a positive used-market price, the price sellers are shown.
+    if (!finite(e) || !finite(m) || !finite(p) || !finite(c) || usedMarketPrice({ marketPrice: m, condition: c }) <= 0) return null;
     return { estimatedPrice: e, marketPrice: m, pawnPrice: p, condition: c };
   } catch {
     return null;

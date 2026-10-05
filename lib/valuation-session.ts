@@ -2,6 +2,7 @@ import type { MockRequestReceipt, RequestReceiptContext } from "@/domain/valuati
 import type { AstlyValuation, EstimateJobAccepted } from "@/domain/astly";
 import { toAstlyConditionChecks, toAstlyEstimateInput } from "@/lib/astly-estimate-input";
 import { getMockAssessment } from "@/adapters/mock/assessment";
+import { usedMarketPrice } from "@/lib/used-price";
 import type { AssessmentAnswer, AssessmentDefinition } from "@/domain/assessment";
 import { answerIdentity, assessmentComplete, isCurrentAssessment, pruneAnswers } from "@/lib/assessment";
 import type { Device, ExpectedPrice, PreliminaryValuation, SessionStatus, TransactionIntent, ValuationSession } from "@/domain/types";
@@ -225,7 +226,16 @@ export function hasPreliminaryValuation(stored: StoredValuationSession | null | 
   const valuation = stored?.session.preliminaryValuation;
   return hasCompletedAssessment(stored) && Boolean(valuation && valuation.currency === "THB" &&
     Number.isFinite(valuation.minPrice) && Number.isFinite(valuation.maxPrice) && valuation.minPrice <= valuation.maxPrice) &&
-    hasReachedStage(stored?.session.status, "preliminary_valuation_available");
+    hasReachedStage(stored?.session.status, "preliminary_valuation_available") && showsUsedMarketPrice(stored!);
+}
+
+// An Astly valuation saved before sellers were shown used-market prices holds
+// Astly's lending figure; later steps send the seller back to Result, which
+// refreshes it. A submitted request keeps the price it was submitted with.
+function showsUsedMarketPrice(stored: StoredValuationSession) {
+  const valuation = stored.session.preliminaryValuation;
+  if (stored.session.request || valuation?.source !== "astly" || !valuation.astly) return true;
+  return valuation.minPrice === usedMarketPrice(valuation.astly.result);
 }
 
 export function updateExpectedPrice(amount: number) {

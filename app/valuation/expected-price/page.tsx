@@ -113,7 +113,7 @@ export default function ExpectedPricePage() {
             </div>
 
             <div className="atlas-flow-panel atlas-reveal atlas-reveal-delay-1 mb-8 px-5 py-5">
-              <p className="text-sm text-slate-500">ราคาประเมินเบื้องต้นจาก {storedSession.session.preliminaryValuation?.source === "astly" ? "Astly" : "Atlas"}</p>
+              <p className="text-sm text-slate-500">{storedSession.session.preliminaryValuation?.source === "astly" ? "ราคามือสองโดยประมาณ" : "ราคาประเมินเบื้องต้นจาก Atlas"}</p>
               <p className="mt-1 text-xl font-semibold text-slate-900">
                 {formatValuation(storedSession.session.preliminaryValuation!)}
               </p>

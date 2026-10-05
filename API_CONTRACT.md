@@ -80,7 +80,7 @@ Only applicable answers count (the same pruning as the assessment), and `unknown
 
 Other iPhone answers (display scratches, overall usability, repair/parts history, account/security and organization management) are collected but do not affect Astly's estimate. This mapping is an Atlas decision, not an Astly-approved equivalence.
 
-A completed `AstlyEstimateResult` carries `estimatedPrice`, `marketPrice`, `pawnPrice`, `condition` (0–1), `confidence`, `loanToValue`, `productName`, Thai `calculation` strings and `completedAt`. `estimatedPrice` is Astly's point value: market reference price × loan-to-value (currently 0.6) × condition multiplier, snapped to a 500 THB step. Atlas does not recompute it. Result stores it as `PreliminaryValuation { minPrice: estimatedPrice, maxPrice: estimatedPrice, currency: "THB", source: "astly", astly }`; Expected Price, Seller Contact and Request Submitted reuse that snapshot and render a single price through `lib/valuation-format.ts`. Result does not require or send expected price, transaction intent or photos.
+A completed `AstlyEstimateResult` carries `estimatedPrice`, `marketPrice`, `pawnPrice`, `condition` (0–1), `confidence`, `loanToValue`, `productName`, Thai `calculation` strings and `completedAt`. `estimatedPrice` is Astly's lending figure: market reference price × loan-to-value (currently 0.6) × condition multiplier, snapped to a 500 THB step. Sellers never see it. Atlas shows a used-market price, `usedMarketPrice(result)` = `marketPrice × condition` to the nearest 100 THB (`lib/used-price.ts`), and Result stores it as `PreliminaryValuation { minPrice, maxPrice (equal), currency: "THB", source: "astly", astly }`; Expected Price, Seller Contact and Request Submitted reuse that snapshot and render a single price through `lib/valuation-format.ts`. Result does not require or send expected price, transaction intent or photos.
 
 The estimate is preliminary and non-binding. Atlas keeps Astly's job ID only in the browser session. Astly demo results carry no attestation and cannot back an Astly loan request. There is no Atlas-persisted result ID, approved quote, Atlas-owned confidence, provenance or expiry contract; Astly's `confidence` is shown only as a coarse label.
 
@@ -94,7 +94,7 @@ interface RequestService {
 }
 ```
 
-Current UI input is `{ sessionId, context, contact, source: "atlast_web" }`. `context` holds device, assessment, the preliminary valuation's price (`minPrice`, `maxPrice`, `currency`, `source`; never the Astly job, breakdown or priced inputs), expected price and stable `transactionIntent`; `contact` holds `{ fullName, phone, lineIdProvided?, consentToContact: true }`. Transaction intent is `outright_sale` or `sell_and_repurchase`; the latter does not define financial or contract terms. Name is trimmed, phone is normalized and validated, and consent is required. `lineIdProvided` is unverified seller-entered text, not a LINE identity or integration credential.
+Current UI input is `{ sessionId, context, contact, source: "atlast_web" }`. `context` holds device, assessment, the preliminary valuation's price (`minPrice`, `maxPrice`, `currency`, `source`; never the Astly job, breakdown or priced inputs), expected price and stable `transactionIntent`; `contact` holds `{ fullName, phone, lineIdProvided?, consentToContact: true }`. Transaction intent is `outright_sale` or `sell_and_repurchase`. For the latter the UI explains ขายฝาก in plain language when it is selected and shows indicative interest and fees on Seller Contact; final contract terms are confirmed later and are not part of this payload. Name is trimmed, phone is normalized and validated, and consent is required. `lineIdProvided` is unverified seller-entered text, not a LINE identity or integration credential.
 
 The mock returns a non-PII `MockRequestReceipt` with a UUID-style mock ID, `MOCK-...` reference, browser timestamp, `prototype_pending` LINE state and a safe request-context snapshot. The receipt keeps assessment definition/version/review metadata for staleness checks, not the assessment answer array. It does not persist the request. The browser session saves the receipt and advances to `request_submitted`, but never saves name, phone, LINE ID or consent evidence. Future submission success must be defined in terms of server persistence, not this mock behavior.
 
@@ -119,7 +119,7 @@ These are adapter/UI behaviors, not a finalized HTTP contract:
 | Network error, 15-second timeout, any other Astly status (for example its own `503`) or a malformed reply | `503 estimate_unavailable` | Yes |
 | Invalid job ID format, or Astly `404` for the job | `404 job_not_found`; the saved job is cleared | Yes |
 | Job `FAILED`/`CANCELLED` | `200` with Astly's `error`/`code`; the saved job is cleared | Yes, except `demo_estimate_unavailable` (Astly cannot price the item) |
-| Job completes with `estimatedPrice <= 0` | Result shows `no_offer` | No |
+| Job completes with no used-market price (`usedMarketPrice(result) <= 0`: no market price, or condition ~0) | Result shows `no_offer` | No |
 
 - All estimate responses are `Cache-Control: no-store`. Astly's upstream error bodies are not passed through except the `FAILED`/`CANCELLED` job `error` and `code`, truncated.
 - Missing prerequisites provide navigation to the relevant earlier step. Browser-local status is not authorization for future server operations.
@@ -141,7 +141,7 @@ Analytics is vendor-neutral. The current mock adapter logs event objects with `c
 | `device_selected` | Device Continue confirms a configuration, including an unchanged one; repeated clicks during navigation are guarded |
 | `condition_question_answered` | Assessment group Continue emits changed answer IDs only after a successful session save |
 | `condition_section_completed` | Review confirmation saves the completed seller assessment; one event covers the whole assessment |
-| `valuation_calculated` | A polled Astly job completes with a positive `estimatedPrice` and the valuation is saved to the session; adds `estimatedAmount` and Astly's `confidence`. Restoring an already-saved valuation does not emit it again |
+| `valuation_calculated` | A polled Astly job completes with a positive used-market price and the valuation is saved to the session; adds `estimatedAmount` (the used-market price shown) and Astly's `confidence`. Restoring an already-saved valuation does not emit it again |
 | `valuation_result_viewed` | An Astly valuation is displayed on Result, whether just completed or restored from the session; once per job per page mount |
 | `seller_proceeded` | Result Continue toward Expected Price |
 | `expected_price_entered` | Valid Expected Price Continue saves the value |
@@ -197,7 +197,7 @@ Resolve before or during the relevant backend work:
 5. Durable request/session association, contact PII handling, submission success and retry/idempotency semantics.
 6. Consent evidence: state, wording/version and authoritative timestamp. Retention/legal policy details are not specified.
 7. Server-owned lifecycle milestones and invalidation when earlier inputs change, distinguished from browser progress.
-8. A durable valuation contract. The session already distinguishes fixture ranges (no `source`) from Astly point estimates (`source: "astly"`), but these live only in the browser. Persistence of Astly results (job ID, inputs, checklist, result), Atlas-side provenance and expiry, and whether Astly's loan-to-value-based `estimatedPrice` is the right seller-facing figure remain unresolved. The assessment-to-checklist mapping above is an Atlas decision awaiting product/Astly agreement.
+8. A durable valuation contract. The session already distinguishes fixture ranges (no `source`) from Astly point estimates (`source: "astly"`), but these live only in the browser. Persistence of Astly results (job ID, inputs, checklist, result), Atlas-side provenance and expiry, remain unresolved. (Decided 2026-10-05: the seller-facing figure is the condition-adjusted used-market price, not Astly's loan-to-value-based `estimatedPrice`.) The assessment-to-checklist mapping above is an Atlas decision awaiting product/Astly agreement.
 
 A sensible dependency order is identity/validation decisions → session persistence → request/contact and consent persistence → adapter wiring and failure handling. Changes to the Astly valuation integration beyond the demo contract, and any LINE or operational Astly integration, require separate decisions and authorization.
 

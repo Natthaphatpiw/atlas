@@ -7,6 +7,7 @@ import { friendStatusOf, pushLineMessages, saleRequestConfirmationMessage } from
 import { readLiffSession } from "@/lib/server/liff-auth";
 import { allowEvents, clockOffsetMs, isVisitId, sanitizeSnapshot } from "@/lib/server/liff-events";
 import { estimateInputHash, readEstimateTicketClaims, readPriceReceipt, type PriceReceipt } from "@/lib/server/visitor";
+import { usedMarketPrice } from "@/lib/used-price";
 import { formatDeviceSpecs } from "@/lib/valuation-format";
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -44,7 +45,7 @@ async function verifiedEstimate(jobId: string | undefined, estimate: Record<stri
   if (!claims || claims.inputHash !== inputHash) return null;
   try {
     const state = await getAstlyEstimate(jobId, claims.visitor);
-    return state.status === "COMPLETED" && state.result && state.result.estimatedPrice > 0 ? state.result : null;
+    return state.status === "COMPLETED" && state.result && usedMarketPrice(state.result) > 0 ? state.result : null;
   } catch {
     return null;
   }
@@ -86,8 +87,11 @@ export async function POST(request: Request) {
 
   const estimate = isRecord(body.estimate) ? body.estimate : {};
   const jobId = typeof estimate.jobId === "string" && /^[0-9a-f-]{16,64}$/i.test(estimate.jobId) ? estimate.jobId : undefined;
-  const verified = await verifiedEstimate(jobId, estimate, estimateInputHash(selection.input));
-  const estimatedPrice = verified?.estimatedPrice ?? price(estimate.estimatedPrice);
+  // The price stored and quoted is the used-market price the seller was shown (lib/used-price.ts);
+  // a result that yields none is not a verified price.
+  const result = await verifiedEstimate(jobId, estimate, estimateInputHash(selection.input));
+  const verified = result && usedMarketPrice(result) > 0 ? result : null;
+  const estimatedPrice = verified ? usedMarketPrice(verified) : price(estimate.estimatedPrice);
   if (!estimatedPrice) return reject(400, "invalid_request");
   // The app requires the Atlas OA as a friend before use; enforce it here too. Unknown (no token) passes.
   if (await friendStatusOf(session) === false) return reject(403, "not_friend");
@@ -114,7 +118,7 @@ export async function POST(request: Request) {
     device_specs: specs,
     expected_price: expectedPrice,
     transaction_intent: intent,
-    ...(verified ? { estimated_price: verified.estimatedPrice, market_price: verified.marketPrice, pawn_price: verified.pawnPrice, ...condition } : {}),
+    ...(verified ? { estimated_price: estimatedPrice, market_price: verified.marketPrice, pawn_price: verified.pawnPrice, ...condition } : {}),
   };
 
   let row: SubmittedRow | undefined;

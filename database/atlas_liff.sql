@@ -88,8 +88,10 @@ create index if not exists atlas_liff_events_name_idx on public.atlas_liff_event
 create index if not exists atlas_liff_events_visit_idx on public.atlas_liff_events (visit_id, occurred_at);
 
 -- A request the user submitted ("interested"): at most one per valuation.
--- Prices are the server-checked Astly result when estimate_verified is true,
--- otherwise what the browser reported.
+-- estimated_price is the used-market price the seller was shown (Astly's
+-- market_price x condition, nearest 100 THB); market_price and pawn_price are
+-- Astly's figures. Prices are the server-checked Astly result when
+-- estimate_verified is true, otherwise what the browser reported.
 create table if not exists public.atlas_sale_requests (
   id                   uuid primary key default gen_random_uuid(),
   reference            text not null unique check (reference ~ '^ATL-[0-9A-F]{8}$'),

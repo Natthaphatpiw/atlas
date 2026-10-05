@@ -99,7 +99,8 @@ export function sessionSnapshot(stored: StoredValuationSession | null = readValu
     condition_score: condition ? Math.min(100, Math.max(0, Math.round(condition.score))) : undefined,
     condition_deductions: condition?.deductions,
     astly_job_id: astly?.jobId ?? session.estimateJob?.jobId,
-    estimated_price: astly?.result.estimatedPrice ?? session.preliminaryValuation?.minPrice,
+    // The price the seller was shown (the used-market price).
+    estimated_price: session.preliminaryValuation?.minPrice,
     market_price: astly?.result.marketPrice,
     pawn_price: astly?.result.pawnPrice,
     expected_price: session.expectedPrice?.amount,
