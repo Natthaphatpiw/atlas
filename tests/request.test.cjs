@@ -115,7 +115,26 @@ test("seller contact trims optional LINE text without validating its contents", 
   assert.deepEqual(blank, { fullName: "Ada", phone: "0812345678", consentToContact: true });
   const arbitrary = sellerContact.normalizeSellerContact({ fullName: "Ada", phone: "0812345678", lineIdProvided: "  @ada / anything?  ", consentToContact: true });
   assert.equal(arbitrary.lineIdProvided, "@ada / anything?");
-  assert.deepEqual(sellerContact.contactErrors(arbitrary), { name: "", phone: "", consent: "" });
+  assert.deepEqual(sellerContact.contactErrors(arbitrary), { name: "", phone: "", address: "", postcode: "", consent: "" });
+});
+
+test("ขายฝาก requires a full address and a Thai postcode; an outright sale never asks", () => {
+  const base = { fullName: "Ada", phone: "0812345678", consentToContact: true };
+  const required = { requireAddress: true };
+  assert.equal(sellerContact.requiresAddress("sell_and_repurchase"), true);
+  assert.equal(sellerContact.requiresAddress("outright_sale"), false);
+  assert.deepEqual(sellerContact.contactErrors(base).address, "", "not required for an outright sale");
+  const missing = sellerContact.contactErrors(base, required);
+  assert.ok(missing.address && missing.postcode);
+  assert.ok(sellerContact.contactErrors({ ...base, address: { line: "บ้าน", postcode: "10110" } }, required).address, "too short to be an address");
+  assert.ok(sellerContact.contactErrors({ ...base, address: { line: "ก".repeat(301), postcode: "10110" } }, required).address);
+  for (const bad of ["1011", "00123", "97000", "abcde"]) {
+    assert.ok(sellerContact.contactErrors({ ...base, address: { line: "99/1 ถนนสุขุมวิท กรุงเทพฯ", postcode: bad } }, required).postcode, bad);
+  }
+  const good = sellerContact.normalizeSellerContact({ ...base, address: { line: "  99/1  ถนนสุขุมวิท\n แขวงคลองตัน  ", postcode: " 10-110 " } });
+  assert.deepEqual(good.address, { line: "99/1 ถนนสุขุมวิท แขวงคลองตัน", postcode: "10110" }, "whitespace collapsed, postcode digits only");
+  assert.deepEqual(sellerContact.contactErrors(good, required), { name: "", phone: "", address: "", postcode: "", consent: "" });
+  assert.equal(sellerContact.contactErrors({ ...base, address: { line: "x", postcode: "1" } }, required).postcode !== "", true);
 });
 
 test("seller contact requires name, phone, and consent", () => {

@@ -1,6 +1,6 @@
 import type { TransactionIntent } from "@/domain/types";
 import { parseValuationSelection } from "@/lib/estimate-request";
-import { contactErrors, normalizeSellerContact } from "@/lib/seller-contact";
+import { contactErrors, normalizeSellerContact, requiresAddress } from "@/lib/seller-contact";
 import { atlasRpc, updateSaleRequest } from "@/lib/server/atlas-db";
 import { getAstlyEstimate } from "@/lib/server/astly-client";
 import { friendStatusOf, pushLineMessages, saleRequestConfirmationMessage } from "@/lib/server/line-messaging";
@@ -68,10 +68,15 @@ export async function POST(request: Request) {
   // The catalog and current assessment definition decide the device and what Astly prices, as for estimates.
   const selection = parseValuationSelection({ deviceId: body.deviceId, specs: body.specs, assessment: body.assessment });
   const rawContact = isRecord(body.contact) ? body.contact : {};
+  const rawAddress = isRecord(rawContact.address) ? rawContact.address : {};
   const contact = normalizeSellerContact({
     fullName: typeof rawContact.fullName === "string" ? rawContact.fullName.slice(0, 200) : "",
     phone: typeof rawContact.phone === "string" ? rawContact.phone.slice(0, 40) : "",
     consentToContact: rawContact.consentToContact === true,
+    address: {
+      line: typeof rawAddress.line === "string" ? rawAddress.line.slice(0, 1000) : "",
+      postcode: typeof rawAddress.postcode === "string" ? rawAddress.postcode.slice(0, 20) : "",
+    },
   });
   const expectedPrice = price(body.expectedPrice);
   const intent: TransactionIntent | undefined =
@@ -79,7 +84,9 @@ export async function POST(request: Request) {
   const now = Date.now();
   const offset = clockOffsetMs(body.sentAt, now);
   const snapshot = sanitizeSnapshot(body.session, offset, now);
-  if (!selection || Object.values(contactErrors(contact)).some(Boolean) || contact.fullName.length > 120 ||
+  // ขายฝาก needs an address for collecting the device and the contract; an outright sale stores none.
+  const requireAddress = requiresAddress(intent);
+  if (!selection || Object.values(contactErrors(contact, { requireAddress })).some(Boolean) || contact.fullName.length > 120 ||
       !expectedPrice || !intent || !snapshot || !isVisitId(body.visitId)) {
     return reject(400, "invalid_request");
   }
@@ -128,6 +135,8 @@ export async function POST(request: Request) {
       request: {
         contact_name: contact.fullName,
         contact_phone: contact.phone,
+        contact_address: requireAddress ? contact.address?.line : undefined,
+        contact_postcode: requireAddress ? contact.address?.postcode : undefined,
         product_name: productName,
         device_id: device.id,
         device_category: device.category,

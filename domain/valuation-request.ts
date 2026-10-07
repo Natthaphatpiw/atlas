@@ -1,11 +1,21 @@
 import type { SellerAssessment } from "./assessment";
 import type { Device, ExpectedPrice, PreliminaryValuation, TransactionIntent } from "./types";
 
+/** Where the device would be collected and the ขายฝาก contract arranged. */
+export interface SellerAddress {
+  /** House number, building, road, sub-district, district and province, as typed. */
+  line: string;
+  /** Thai postcode, five digits. */
+  postcode: string;
+}
+
 export interface SellerContact {
   fullName: string;
   phone: string;
   /** Unverified seller-entered contact text, never a LINE platform identity. */
   lineIdProvided?: string;
+  /** Required for sell_and_repurchase (ขายฝาก) only; never collected for an outright sale. */
+  address?: SellerAddress;
   consentToContact: boolean;
 }
 

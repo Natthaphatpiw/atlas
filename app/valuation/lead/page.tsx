@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEv
 import { useFlowChannel, useFlowRouter } from "@/lib/flow-navigation";
 import { MockAnalyticsService } from "@/adapters/mock/analytics";
 import { ChannelRequestService } from "@/adapters/channel-request";
-import { contactErrors, normalizeSellerContact } from "@/lib/seller-contact";
+import { contactErrors, normalizeSellerContact, requiresAddress } from "@/lib/seller-contact";
 import { AppShell } from "@/components/app-shell";
 import { FlowActions, FlowBack, FlowForward } from "@/components/flow-actions";
 import { navigateForward } from "@/lib/forward-navigation";
@@ -40,14 +40,18 @@ export default function LeadPage() {
   const [phone, setPhone] = useState("");
   const [lineId, setLineId] = useState("");
   const viewed = useRef<string | null>(null);
+  const [addressLine, setAddressLine] = useState("");
+  const [postcode, setPostcode] = useState("");
   const [consent, setConsent] = useState(false);
-  const [touched, setTouched] = useState({ name: false, phone: false, consent: false });
+  const [touched, setTouched] = useState({ name: false, phone: false, address: false, postcode: false, consent: false });
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const submittingRef = useRef(false);
   const nameRef = useRef<HTMLInputElement>(null);
   const phoneRef = useRef<HTMLInputElement>(null);
+  const addressRef = useRef<HTMLTextAreaElement>(null);
+  const postcodeRef = useRef<HTMLInputElement>(null);
   const consentRef = useRef<HTMLInputElement>(null);
 
   const hasDevice = Boolean(storedSession?.device && storedSession?.session?.deviceId);
@@ -55,8 +59,18 @@ export default function LeadPage() {
   const hasPrerequisites = hasRequestPrerequisites(storedSession);
   const mockResult = hasPrerequisites ? storedSession?.session.preliminaryValuation ?? null : null;
 
-  const contact = normalizeSellerContact({ fullName, phone, lineIdProvided: inLiff ? undefined : lineId, consentToContact: consent });
-  const { name: nameError, phone: phoneError, consent: consentError } = contactErrors(contact);
+  // ขายฝาก needs an address for collecting the device and the contract; an outright sale asks for none.
+  const needsAddress = requiresAddress(storedSession?.session.transactionIntent);
+  const contact = normalizeSellerContact({
+    fullName,
+    phone,
+    lineIdProvided: inLiff ? undefined : lineId,
+    consentToContact: consent,
+    ...(needsAddress ? { address: { line: addressLine, postcode } } : {}),
+  });
+  const {
+    name: nameError, phone: phoneError, address: addressError, postcode: postcodeError, consent: consentError,
+  } = contactErrors(contact, { requireAddress: needsAddress });
   useEffect(() => {
     if (!storedSession || !mockResult || !hasPrerequisites || viewed.current === storedSession.session.id) return;
     viewed.current = storedSession.session.id;
@@ -64,6 +78,8 @@ export default function LeadPage() {
   }, [storedSession, mockResult, hasPrerequisites]);
   const showNameError = (submitted || touched.name) && Boolean(nameError);
   const showPhoneError = (submitted || touched.phone) && Boolean(phoneError);
+  const showAddressError = (submitted || touched.address) && Boolean(addressError);
+  const showPostcodeError = (submitted || touched.postcode) && Boolean(postcodeError);
   const showConsentError = (submitted || touched.consent) && Boolean(consentError);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -71,8 +87,8 @@ export default function LeadPage() {
     if (submittingRef.current) return;
     setSubmitted(true);
     setSubmitError("");
-    if (nameError || phoneError || consentError) {
-      (nameError ? nameRef : phoneError ? phoneRef : consentRef).current?.focus();
+    if (nameError || phoneError || addressError || postcodeError || consentError) {
+      (nameError ? nameRef : phoneError ? phoneRef : addressError ? addressRef : postcodeError ? postcodeRef : consentRef).current?.focus();
       return;
     }
     if (!storedSession || !hasPrerequisites || !mockResult) return;
@@ -219,6 +235,29 @@ export default function LeadPage() {
                     className={inputClass} />
                   {showPhoneError ? <p id="lead-phone-error" aria-live="polite" className="mt-2 text-sm text-rose-700">{phoneError}</p> : null}
                 </div>
+                {needsAddress ? <>
+                  <div>
+                    <label htmlFor="lead-address" className="text-sm font-medium text-slate-700">ที่อยู่</label>
+                    <textarea ref={addressRef} id="lead-address" name="street-address" autoComplete="street-address" required rows={3}
+                      placeholder="บ้านเลขที่ หมู่บ้าน/อาคาร ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด" value={addressLine}
+                      onChange={(event) => setAddressLine(event.target.value)}
+                      onBlur={() => setTouched((current) => ({ ...current, address: true }))}
+                      aria-invalid={showAddressError} aria-describedby={`lead-address-help${showAddressError ? " lead-address-error" : ""}`}
+                      className={`${inputClass} resize-y leading-7`} />
+                    <p id="lead-address-help" className="mt-2 text-xs leading-6 text-slate-500">ใช้สำหรับนัดรับเครื่องและจัดทำสัญญาขายฝาก</p>
+                    {showAddressError ? <p id="lead-address-error" aria-live="polite" className="mt-1 text-sm text-rose-700">{addressError}</p> : null}
+                  </div>
+                  <div>
+                    <label htmlFor="lead-postcode" className="text-sm font-medium text-slate-700">รหัสไปรษณีย์</label>
+                    <input ref={postcodeRef} id="lead-postcode" name="postal-code" type="text" inputMode="numeric" autoComplete="postal-code"
+                      required maxLength={5} placeholder="เช่น 10110" value={postcode}
+                      onChange={(event) => setPostcode(event.target.value.replace(/\D/g, "").slice(0, 5))}
+                      onBlur={() => setTouched((current) => ({ ...current, postcode: true }))}
+                      aria-invalid={showPostcodeError} aria-describedby={showPostcodeError ? "lead-postcode-error" : undefined}
+                      className={`${inputClass} sm:max-w-[12rem]`} />
+                    {showPostcodeError ? <p id="lead-postcode-error" aria-live="polite" className="mt-2 text-sm text-rose-700">{postcodeError}</p> : null}
+                  </div>
+                </> : null}
                 {inLiff ? null : <div>
                   <label htmlFor="lead-line-id" className="text-sm font-medium text-slate-700">LINE ID <span className="font-normal text-slate-500">(ไม่บังคับ)</span></label>
                   <input id="lead-line-id" name="lineIdProvided" type="text" autoComplete="off" value={lineId}

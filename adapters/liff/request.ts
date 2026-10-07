@@ -1,6 +1,6 @@
 import { toReceiptContext } from "@/adapters/mock/request";
 import type { MockRequestReceipt, ValuationRequestInput } from "@/domain/valuation-request";
-import { contactErrors } from "@/lib/seller-contact";
+import { contactErrors, requiresAddress } from "@/lib/seller-contact";
 import { getLiffAuthToken, reauthenticateLiff } from "@/lib/liff/auth";
 import { flushLiffEvents, liffVisitId, sessionSnapshot } from "@/lib/liff/tracker";
 import { readValuationSession } from "@/lib/valuation-session";
@@ -15,7 +15,8 @@ const FLUSH_WAIT_MS = 2_000;
  */
 export class LiffRequestService implements RequestService {
   async submitRequest(input: ValuationRequestInput): Promise<MockRequestReceipt> {
-    if (Object.values(contactErrors(input.contact)).some(Boolean)) throw new Error("Invalid contact");
+    const requireAddress = requiresAddress(input.context.transactionIntent);
+    if (Object.values(contactErrors(input.contact, { requireAddress })).some(Boolean)) throw new Error("Invalid contact");
     const stored = readValuationSession();
     const { device, assessment, preliminaryValuation, expectedPrice, transactionIntent } = input.context;
     if (!stored || stored.session.id !== input.sessionId || !assessment.reviewedAt) throw new Error("Invalid request context");
@@ -38,7 +39,13 @@ export class LiffRequestService implements RequestService {
         estimate: { jobId: astly?.jobId, ticket: astly?.ticket, priceReceipt: astly?.priceReceipt, estimatedPrice: preliminaryValuation.minPrice },
         expectedPrice: expectedPrice.amount,
         transactionIntent,
-        contact: { fullName: input.contact.fullName, phone: input.contact.phone, consentToContact: input.contact.consentToContact },
+        contact: {
+          fullName: input.contact.fullName,
+          phone: input.contact.phone,
+          consentToContact: input.contact.consentToContact,
+          // Only ขายฝาก needs an address; an outright sale never sends one.
+          ...(requireAddress && input.contact.address ? { address: input.contact.address } : {}),
+        },
       }),
     });
     let response = await send();

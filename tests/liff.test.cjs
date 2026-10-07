@@ -411,7 +411,8 @@ test("submitting stores a checked request once and confirms it in LINE", async (
       estimate: { jobId: JOB, ticket, estimatedPrice: 99_999 },
       expectedPrice: 25000,
       transactionIntent: "sell_and_repurchase",
-      contact: { fullName: " สมชาย ใจดี ", phone: "081-234-5678", consentToContact: true },
+      contact: { fullName: " สมชาย ใจดี ", phone: "081-234-5678", consentToContact: true,
+        address: { line: " 99/1 ถนนสุขุมวิท  แขวงคลองตัน เขตคลองเตย กรุงเทพฯ ", postcode: "10110" } },
       ...overrides,
     }),
   }));
@@ -429,6 +430,8 @@ test("submitting stores a checked request once and confirms it in LINE", async (
   assert.deepEqual(rpc.request.condition_deductions, []);
   assert.equal(rpc.request.contact_phone, "0812345678");
   assert.equal(rpc.request.contact_name, "สมชาย ใจดี");
+  assert.equal(rpc.request.contact_address, "99/1 ถนนสุขุมวิท แขวงคลองตัน เขตคลองเตย กรุงเทพฯ", "ขายฝาก stores the address");
+  assert.equal(rpc.request.contact_postcode, "10110");
   assert.equal(rpc.request.product_name, "Apple iPhone 15 Pro");
   assert.equal(rpc.ingest.user.line_user_id, USER, "the user comes from the session token");
   assert.equal(rpc.ingest.session.device_model, "iPhone 15 Pro", "the stored snapshot uses the validated device");
@@ -480,6 +483,16 @@ test("submitting stores a checked request once and confirms it in LINE", async (
   await submit({ estimate: { jobId: JOB, priceReceipt: zero, estimatedPrice: 99999 } });
   const zeroRow = JSON.parse(calls.find((call) => call.url.endsWith("atlas_submit_sale_request")).init.body).p_payload;
   assert.equal(zeroRow.request.estimate_verified, false, "a worthless result never marks the browser's price as verified");
+
+  // ขายฝาก without a valid address is refused; an outright sale never stores one.
+  const fullContact = { fullName: "สมชาย ใจดี", phone: "0812345678", consentToContact: true };
+  assert.equal((await submit({ contact: fullContact })).status, 400, "ขายฝาก needs an address");
+  assert.equal((await submit({ contact: { ...fullContact, address: { line: "99/1 ถนนสุขุมวิท กรุงเทพฯ", postcode: "00000" } } })).status, 400);
+  calls.length = 0;
+  await submit({ transactionIntent: "outright_sale", contact: { ...fullContact, address: { line: "99/1 ถนนสุขุมวิท กรุงเทพฯ", postcode: "10110" } } });
+  const outright = JSON.parse(calls.find((call) => call.url.endsWith("atlas_submit_sale_request")).init.body).p_payload;
+  assert.equal(outright.request.contact_address, undefined, "an outright sale stores no address");
+  assert.equal(outright.request.contact_postcode, undefined);
 
   calls.length = 0;
   friend = 404;

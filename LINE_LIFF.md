@@ -52,14 +52,14 @@ Development only (ignored by production builds, browser and server): `NEXT_PUBLI
 
 ## Database
 
-Run [`database/atlas_liff.sql`](database/atlas_liff.sql) once in the Astly Supabase SQL editor; re-running it is safe. Every object is prefixed `atlas_`. RLS is enabled with no policies and `anon`/`authenticated` have no grants, so only the service-role key can read or write.
+Run [`database/atlas_liff.sql`](database/atlas_liff.sql) once in the Astly Supabase SQL editor; re-running it is safe. A database set up before 2026-10-07 also needs [`database/atlas_liff_002_seller_address.sql`](database/atlas_liff_002_seller_address.sql) (seller address for ขายฝาก; also safe to re-run). Every object is prefixed `atlas_`. RLS is enabled with no policies and `anon`/`authenticated` have no grants, so only the service-role key can read or write.
 
 | Table | One row per |
 | --- | --- |
 | `atlas_line_users` | LINE user: display name, picture, friend status, visit count, first/last seen |
 | `atlas_valuation_sessions` | Valuation attempt, submitted or not: device, assessment answers (each with its answer time), Astly condition score and prices, asking price, sale type, furthest stage, and the first time each stage was reached |
 | `atlas_liff_events` | Event (see below), with its visit, valuation, step, time and active duration |
-| `atlas_sale_requests` | Submitted request: reference, contact, consent time, product, verified or reported prices, asking price, sale type, follow-up `status` (`new` → `contacted` → `qualified` / `closed` / `rejected`) and LINE push outcome |
+| `atlas_sale_requests` | Submitted request: reference, contact (plus `contact_address` and `contact_postcode` for ขายฝาก only), consent time, product, verified or reported prices, asking price, sale type, follow-up `status` (`new` → `contacted` → `qualified` / `closed` / `rejected`) and LINE push outcome |
 
 Views for analysis:
 

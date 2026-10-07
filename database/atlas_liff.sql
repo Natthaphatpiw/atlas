@@ -126,6 +126,13 @@ create table if not exists public.atlas_sale_requests (
 create index if not exists atlas_sale_requests_user_idx on public.atlas_sale_requests (line_user_id, created_at desc);
 create index if not exists atlas_sale_requests_status_idx on public.atlas_sale_requests (status, created_at desc);
 
+-- Address for ขายฝาก (sell_and_repurchase) requests: where the device is
+-- collected and the contract arranged. Null for an outright sale, which never
+-- asks for one. Added after launch, so it is also an idempotent ALTER.
+alter table public.atlas_sale_requests
+  add column if not exists contact_address  text check (contact_address is null or length(contact_address) between 10 and 300),
+  add column if not exists contact_postcode text check (contact_postcode is null or contact_postcode ~ '^(1[0-9]|[2-8][0-9]|9[0-6])[0-9]{3}$');
+
 -- ---------------------------------------------------------------------------
 -- Functions (Atlas's server calls these through PostgREST RPC)
 -- ---------------------------------------------------------------------------
@@ -271,14 +278,15 @@ begin
     begin
       insert into atlas_sale_requests as r (
         reference, session_id, line_user_id,
-        contact_name, contact_phone, consent_to_contact, consented_at,
+        contact_name, contact_phone, contact_address, contact_postcode, consent_to_contact, consented_at,
         product_name, device_id, device_category, device_brand, device_model, device_specs,
         condition_score, condition_deductions,
         astly_job_id, estimate_verified, estimated_price, market_price, pawn_price,
         expected_price, transaction_intent
       ) values (
         'ATL-' || upper(substr(md5(gen_random_uuid()::text), 1, 8)), v_session, v_user,
-        v_r ->> 'contact_name', v_r ->> 'contact_phone', true, v_now,
+        v_r ->> 'contact_name', v_r ->> 'contact_phone',
+        nullif(v_r ->> 'contact_address', ''), nullif(v_r ->> 'contact_postcode', ''), true, v_now,
         v_r ->> 'product_name', v_r ->> 'device_id', v_r ->> 'device_category', v_r ->> 'device_brand', v_r ->> 'device_model',
         coalesce(v_r -> 'device_specs', '{}'::jsonb),
         (v_r ->> 'condition_score')::smallint, v_r -> 'condition_deductions',
