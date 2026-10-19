@@ -376,7 +376,7 @@ test("an estimate job resumes only for what Astly prices, and its result is stor
   assert.equal(session.currentEstimateJob(withJob, Date.now() + 2 * 60 * 60 * 1000), null, "expired jobs are not resumed");
 
   const unpriced = session.saveAssessmentAnswers(definition, answers.map((item) =>
-    item.questionId === "find_my_enabled" ? { ...item, value: choiceValue("yes") } : item), true);
+    item.questionId === "repair_or_parts_replaced" ? { ...item, value: choiceValue("unknown") } : item), true);
   assert.ok(session.currentEstimateJob(unpriced), "an answer Astly never sees keeps the job");
 
   const edited = session.saveAssessmentAnswers(definition, answers.map((item) =>

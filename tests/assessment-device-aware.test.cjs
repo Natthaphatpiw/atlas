@@ -38,7 +38,7 @@ function answer(questionId, optionId) {
 
 function completeAnswers(definition, selected) {
   const answers = [answer("device_powers_on", "yes")];
-  const defaults = { repair_or_parts_replaced: "no", organization_owned_or_managed: "no" };
+  const defaults = { repair_or_parts_replaced: "no" };
   for (const question of applicableQuestions(definition, selected, answers)) {
     if (question.id === "device_powers_on") continue;
     if (question.type === "multi") {
@@ -61,7 +61,7 @@ test("new assessments have ordered, unique questions and substantial category co
     const groups = definition.questions.map((question) => question.groupId);
     const transitions = groups.filter((group, index) => index === 0 || group !== groups[index - 1]);
     const sectionIds = new Set(definition.sections.map((section) => section.id));
-    assert.ok(ids.length >= 25, selected.id);
+    assert.ok(ids.length >= 20, selected.id);
     assert.equal(new Set(ids).size, ids.length, selected.id);
     assert.equal(new Set(groups).size, transitions.length, selected.id);
     definition.questions.forEach((question, index) => {
@@ -112,7 +112,7 @@ test("MacBook includes integrated input and battery checks; desktop questions fo
   assert.ok(!repairOptions(mini).includes("battery"));
 });
 
-test("completion and progress account for visible repair and organization branches", () => {
+test("completion and progress account for visible repair branches", () => {
   for (const selected of [cellularIpad, macbook, imac, mini]) {
     const definition = getMockAssessment(selected);
     const base = completeAnswers(definition, selected);
@@ -127,16 +127,8 @@ test("completion and progress account for visible repair and organization branch
   }
 });
 
-test("organization and accessory answers are pruned when their parent choice changes", () => {
+test("accessory answers are pruned when their parent choice changes", () => {
   const definition = getMockAssessment(macbook);
-  const managed = [
-    answer("organization_owned_or_managed", "yes"),
-    answer("organization_release_ready", "yes"),
-  ];
-  assert.ok(applicableQuestions(definition, macbook, managed).some((question) => question.id === "organization_release_ready"));
-  const unmanaged = [answer("organization_owned_or_managed", "no"), managed[1]];
-  assert.ok(!pruneAnswers(definition, macbook, unmanaged).some((item) => item.questionId === "organization_release_ready"));
-
   const withCharger = [
     { questionId: "included_accessories", value: { kind: "multi", optionIds: ["charger_or_power_cord"] }, answeredAt: "2026-09-28T00:00:00.000Z" },
     answer("included_accessories_work", "yes"),

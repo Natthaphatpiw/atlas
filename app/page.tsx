@@ -36,10 +36,10 @@ export default function Home() {
               <p className="text-sm font-semibold tracking-[0.02em] text-[var(--color-action-primary)]">ATLAS</p>
               <h1 className="atlas-editorial-title mx-auto mt-5 max-w-[62rem] text-[clamp(2.75rem,7vw,5.9rem)] font-semibold leading-[1.02] text-[var(--color-foreground)]">
                 <span className="block">รู้ราคาประเมิน</span>
-                <span className="mt-5 block text-[var(--color-brand-primary)] sm:mt-6">ก่อนตัดสินใจขาย</span>
+                <span className="mt-5 block text-[var(--color-brand-primary)] sm:mt-6">ก่อนตัดสินใจซื้อขาย</span>
               </h1>
               <p className="atlas-editorial-copy mx-auto mt-6 max-w-[40rem] text-base leading-7 text-[var(--color-muted-foreground)] sm:text-lg">
-                ประเมินราคาสินค้า IT เบื้องต้น เพื่อช่วยให้คุณตัดสินใจได้อย่างมั่นใจ
+                ประเมินราคาอุปกรณ์ IT เบื้องต้น เพื่อช่วยให้คุณตัดสินใจซื้อหรือขายได้อย่างมั่นใจ
               </p>
               <div className="mt-8 flex justify-center">
                 <FlowLink href="/valuation/device" className="atlas-focus atlas-interactive inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--radius-control)] border border-[var(--color-action-primary)] bg-[var(--color-action-primary)] px-6 py-3 text-base font-semibold text-white">

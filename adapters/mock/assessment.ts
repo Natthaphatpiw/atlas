@@ -20,6 +20,31 @@ const severityOptions = [
   { id: "unknown", label: "ไม่ทราบ" },
 ];
 
+// Temporarily keep account-lock and organization-management questions out of
+// the assessment flow. The source definitions remain below for easy restore.
+const temporarilyHiddenQuestionIds = new Set([
+  "find_my_enabled",
+  "activation_lock_removal_ready",
+  "lost_mode_or_reported_lost",
+  "seller_can_sign_out_apple_account",
+  "account_sign_out_ready",
+  "organization_owned_or_managed",
+  "supervised_status",
+  "mdm_or_configuration_profile",
+  "organization_release_ready",
+]);
+
+const activeQuestions = (questions: AssessmentQuestion[]) =>
+  questions.filter((question) => !temporarilyHiddenQuestionIds.has(question.id));
+
+const activeSections = (
+  sections: AssessmentDefinition["sections"],
+  questions: AssessmentQuestion[],
+) => {
+  const sectionIds = new Set(activeQuestions(questions).map((question) => question.sectionId));
+  return sections.filter((section) => sectionIds.has(section.id));
+};
+
 const functionQuestion = (
   id: string,
   groupId: string,
@@ -603,11 +628,11 @@ export function getMockAssessment(device: Device): AssessmentDefinition {
 
   if (isIPhone) {
     return {
-      id: "seller_reported_iphone_v1",
-      version: 1,
+      id: "seller_reported_iphone_v2",
+      version: 2,
       coverage: "iphone",
       features: iPhoneFeatures,
-      sections: [
+      sections: activeSections([
         { id: "basics", label: "ภาพรวมเครื่อง" },
         { id: "physical", label: "สภาพภายนอก" },
         { id: "functionality", label: "การทำงาน" },
@@ -615,8 +640,8 @@ export function getMockAssessment(device: Device): AssessmentDefinition {
         { id: "repairs", label: "การซ่อมและอะไหล่" },
         { id: "security", label: "บัญชีและความปลอดภัย" },
         { id: "organization", label: "การจัดการโดยองค์กร" },
-      ],
-      questions: iPhoneQuestions,
+      ], iPhoneQuestions),
+      questions: activeQuestions(iPhoneQuestions),
     };
   }
 
@@ -625,25 +650,25 @@ export function getMockAssessment(device: Device): AssessmentDefinition {
     if (/cellular|\b(?:4g|5g|lte)\b/i.test(device.specs.network ?? "")) features.push("cellular");
     if (device.capabilities?.stylus === true) features.push("stylus");
     return {
-      id: "seller_reported_tablet_v1", version: 1, coverage: "tablet",
-      features, sections: extendedSections, questions: tabletQuestions,
+      id: "seller_reported_tablet_v2", version: 2, coverage: "tablet",
+      features, sections: activeSections(extendedSections, tabletQuestions), questions: activeQuestions(tabletQuestions),
     };
   }
 
   if (device.category === "laptop" && device.brand === "Apple" && /^MacBook\b/i.test(device.model)) {
     return {
-      id: "seller_reported_macbook_v1", version: 1, coverage: "macbook",
-      features: ["touch_id"], sections: extendedSections, questions: macBookQuestions,
+      id: "seller_reported_macbook_v2", version: 2, coverage: "macbook",
+      features: ["touch_id"], sections: activeSections(extendedSections, macBookQuestions), questions: activeQuestions(macBookQuestions),
     };
   }
 
   if (device.category === "desktop" && device.brand === "Apple") {
     const builtIn = /^iMac\b/i.test(device.model);
     return {
-      id: "seller_reported_mac_desktop_v1", version: 1, coverage: "desktop",
+      id: "seller_reported_mac_desktop_v2", version: 2, coverage: "desktop",
       features: builtIn ? ["built_in_display", "built_in_camera", "built_in_microphone", "built_in_speakers"] : [],
-      sections: extendedSections.filter((section) => section.id !== "battery"),
-      questions: desktopQuestions(builtIn),
+      sections: activeSections(extendedSections.filter((section) => section.id !== "battery"), desktopQuestions(builtIn)),
+      questions: activeQuestions(desktopQuestions(builtIn)),
     };
   }
 

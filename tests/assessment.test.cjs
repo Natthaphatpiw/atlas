@@ -222,7 +222,7 @@ test("unchanged reviewed answers preserve later status; a changed answer clears 
 
 test("mock valuation exposes the assessment, retains fixed range, and rejects assessment pricing", async () => {
   const service = new MockValuationService();
-  assert.equal((await service.getDeviceAssessment(iphone)).id, "seller_reported_iphone_v1");
+  assert.equal((await service.getDeviceAssessment(iphone)).id, "seller_reported_iphone_v2");
   assert.deepEqual(await service.getMockValuationResult({}), { minPrice: 24500, maxPrice: 27000, currency: "THB" });
   await assert.rejects(() => service.estimateValue({ assessment: {}, conditionAnswers: [] }), /not implemented/);
 });
@@ -268,7 +268,7 @@ test("opening a required conditional branch prevents review completion until its
 });
 
 test("incomplete or forged reviewed assessment cannot unlock later stages", () => {
-  const incomplete = completeIphoneAnswers().filter((item) => item.questionId !== "find_my_enabled");
+  const incomplete = completeIphoneAnswers().filter((item) => item.questionId !== "device_powers_on");
   const stored = {
     device: iphone,
     session: {
@@ -282,6 +282,20 @@ test("incomplete or forged reviewed assessment cannot unlock later stages", () =
   assert.equal(session.updateExpectedPrice(22000), null);
   assert.equal(session.markLeadCollected("forged-incomplete"), null);
   assert.equal(session.markHandoffReady("forged-incomplete"), null);
+});
+
+test("temporarily hides account-lock and organization-management questions", () => {
+  const hidden = new Set([
+    "find_my_enabled", "activation_lock_removal_ready", "lost_mode_or_reported_lost",
+    "seller_can_sign_out_apple_account", "account_sign_out_ready", "organization_owned_or_managed",
+    "supervised_status", "mdm_or_configuration_profile", "organization_release_ready",
+  ]);
+  for (const device of mockDevices) {
+    const current = getMockAssessment(device);
+    assert.ok(current.questions.every((question) => !hidden.has(question.id)), device.id);
+    const usedSections = new Set(current.questions.map((question) => question.sectionId));
+    assert.ok(current.sections.every((section) => usedSections.has(section.id)), device.id);
+  }
 });
 
 test("legacy recovery preserves device and legacy evidence while resetting downstream state", () => {
