@@ -89,8 +89,10 @@ create index if not exists atlas_liff_events_visit_idx on public.atlas_liff_even
 
 -- A request the user submitted ("interested"): at most one per valuation.
 -- estimated_price is the used-market price the seller was shown (Astly's
--- market_price x condition, nearest 100 THB); market_price and pawn_price are
--- Astly's figures. Prices are the server-checked Astly result when
+-- market_price x Atlas's condition_score / 100, nearest 100 THB); market_price
+-- and pawn_price are Astly's figures. condition_score is scored by Atlas's
+-- server from the answers (lib/condition-score.ts); condition_deductions holds
+-- each group's points as [{ model, group, points }]. Prices are the server-checked Astly result when
 -- estimate_verified is true, otherwise what the browser reported.
 create table if not exists public.atlas_sale_requests (
   id                   uuid primary key default gen_random_uuid(),

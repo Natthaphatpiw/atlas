@@ -176,7 +176,7 @@ test("tablet, MacBook and Mac desktop answers map onto Astly's checklist", () =>
   assert.deepEqual(toAstlyConditionChecks(healthyTablet.definition, tablet, healthyTablet.answers), noFaults);
   const brokenTablet = healthyAnswers(tablet, {
     frame_body_condition: choiceValue("minor"),
-    display_has_no_defects: choiceValue("no"),
+    display_works: choiceValue("no"),
     battery_holds_charge: choiceValue("no"),
     charging_port_works: choiceValue("no"),
   });
@@ -195,7 +195,7 @@ test("tablet, MacBook and Mac desktop answers map onto Astly's checklist", () =>
   });
 
   const imac = deviceCatalog.find((device) => device.category === "desktop" && /^iMac/.test(device.model));
-  const brokenImac = healthyAnswers(imac, { built_in_display_has_no_defects: choiceValue("no"), power_stability: choiceValue("no") });
+  const brokenImac = healthyAnswers(imac, { built_in_display_works: choiceValue("no"), power_stability: choiceValue("no") });
   assert.equal(brokenImac.definition.coverage, "desktop");
   assert.deepEqual(toAstlyConditionChecks(brokenImac.definition, imac, brokenImac.answers), {
     ...noFaults, screenLineDeadPixel: true, waterIssue: true,

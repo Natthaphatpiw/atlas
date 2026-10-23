@@ -7,15 +7,13 @@ const damaged = ["minor", "noticeable", "severe"];
 const clearlyDamaged = ["noticeable", "severe"];
 
 // "Does it work?" questions answered "no", by the Astly checklist item they cost.
-const failedDisplay = ["display_works", "display_has_no_defects", "built_in_display_works", "built_in_display_has_no_defects"];
+const failedDisplay = ["display_works", "built_in_display_works"];
 const failedTouch = ["touchscreen_works", "stylus_works"];
 const failedCamera = ["front_camera_works", "rear_camera_works", "cameras_work", "camera_works", "face_id_works"];
 // Physical controls, ports, charging, audio and radios.
 const failedPortOrButton = [
   "physical_buttons_work",
-  "haptics_work",
   "wired_charging_works",
-  "wireless_charging_works",
   "charging_port_works",
   "charging_works",
   "ports_work",
@@ -24,9 +22,7 @@ const failedPortOrButton = [
   "trackpad_works",
   "touch_id_works",
   "speakers_work",
-  "microphones_work",
   "wifi_works",
-  "bluetooth_works",
   "cellular_works",
   "buttons_ports_work",
 ];
@@ -41,7 +37,8 @@ const wearIncludedBody = ["back_glass_condition", "back_cover_condition", "case_
  * Maps a seller-reported assessment onto Astly's eight-item checklist. Only
  * applicable, valid answers count, and "unknown" never deducts: the checklist
  * records reported faults, not missing information. Answers with no checklist
- * counterpart (scratches, repairs, accounts, accessories) do not move the price.
+ * counterpart (scratches, repairs) do not change what Astly is asked; they move
+ * the price through Atlas's condition score (lib/condition-score.ts).
  */
 export function toAstlyConditionChecks(definition: AssessmentDefinition, device: Device, answers: AssessmentAnswer[]): AstlyConditionChecks {
   const values = new Map<string, AssessmentValue>(

@@ -11,7 +11,6 @@ import { Button } from "@/components/ui-primitives";
 import type { AstlyValuation } from "@/domain/astly";
 import type { Device } from "@/domain/types";
 import { estimateRequestBody } from "@/lib/estimate-request-body";
-import { usedMarketPrice } from "@/lib/used-price";
 import { formatBaht, formatDeviceSpecs } from "@/lib/valuation-format";
 import {
   clearEstimateJob,
@@ -23,6 +22,7 @@ import {
   markPreliminaryValuationAvailable,
   readValuationSession,
   saveEstimateJob,
+  shownUsedPrice,
   type StoredValuationSession,
 } from "@/lib/valuation-session";
 
@@ -93,7 +93,7 @@ export default function ResultPage() {
           setPhase({ kind: "ready", valuation: existing });
           return;
         }
-        const shown = usedMarketPrice(existing.result);
+        const shown = shownUsedPrice(stored, existing.result);
         if (shown <= 0) {
           setPhase(failed(noOfferMessage, "no_offer", false));
           return;
@@ -137,7 +137,7 @@ export default function ResultPage() {
 
         if (state.status === "COMPLETED" && state.result) {
           const result = state.result;
-          const shown = usedMarketPrice(result);
+          const shown = shownUsedPrice(stored, result);
           if (shown <= 0) {
             // Keep the job: revisiting re-reads this outcome instead of paying again.
             setPhase(failed(noOfferMessage, "no_offer", false));
@@ -280,7 +280,7 @@ export default function ResultPage() {
         ) : (
           <ResultContent
             device={storedSession.device}
-            valuation={phase.valuation}
+            price={shownUsedPrice(storedSession, phase.valuation.result)}
             onContinue={handleContinue}
             onBack={handleBack}
           />
@@ -331,16 +331,16 @@ function FailedContent({ phase, onRetry, onBack }: { phase: Extract<Phase, { kin
 
 function ResultContent({
   device,
-  valuation,
+  price,
   onContinue,
   onBack,
 }: {
   device: Device;
-  valuation: AstlyValuation;
+  /** Used-market price × Atlas's condition score (shownUsedPrice). */
+  price: number;
   onContinue: () => void;
   onBack: () => void;
 }) {
-  const price = usedMarketPrice(valuation.result);
   return (
     <>
       <DeviceSummary device={device} />

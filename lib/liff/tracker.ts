@@ -3,7 +3,8 @@ import type { AnalyticsEvent } from "@/domain/types";
 import { toCanonicalPath } from "@/lib/flow-paths";
 import { getLiffAuthToken, reauthenticateLiff } from "@/lib/liff/auth";
 import { STAGES, type SessionSnapshot, type StageTimes, type WireEvent } from "@/lib/liff/stages";
-import { hasReachedStage, readValuationSession, type StoredValuationSession } from "@/lib/valuation-session";
+import { conditionDeductions } from "@/lib/condition-score";
+import { hasReachedStage, readValuationSession, sessionCondition, type StoredValuationSession } from "@/lib/valuation-session";
 
 // Records how a LIFF user moves through the valuation flow: every analytics
 // event, the active (on-screen) time spent on each step, the first time each
@@ -84,7 +85,7 @@ export function sessionSnapshot(stored: StoredValuationSession | null = readValu
   if (!stored?.device || !stored.session?.id) return null;
   const { session, device } = stored;
   const astly = session.preliminaryValuation?.astly;
-  const condition = astly?.condition ?? session.estimateJob?.condition;
+  const condition = sessionCondition(stored);
   return {
     client_session_id: session.id,
     status: session.status,
@@ -96,8 +97,8 @@ export function sessionSnapshot(stored: StoredValuationSession | null = readValu
     assessment_definition_id: session.assessment?.definitionId,
     assessment_version: session.assessment?.version,
     assessment_answers: session.assessment?.answers,
-    condition_score: condition ? Math.min(100, Math.max(0, Math.round(condition.score))) : undefined,
-    condition_deductions: condition?.deductions,
+    condition_score: condition?.score,
+    condition_deductions: condition ? conditionDeductions(condition) : undefined,
     astly_job_id: astly?.jobId ?? session.estimateJob?.jobId,
     // The price the seller was shown (the used-market price).
     estimated_price: session.preliminaryValuation?.minPrice,

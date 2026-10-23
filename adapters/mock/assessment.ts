@@ -34,8 +34,27 @@ const temporarilyHiddenQuestionIds = new Set([
   "organization_release_ready",
 ]);
 
+// Not about the device's condition or specification, or merged into another
+// question (owner decision 2026-10-23; see lib/condition-score.ts). Accessories
+// belong to the deal, not the device; a battery swap and the overall
+// "usable normally" answer repeat other questions; Bluetooth, haptics, wireless
+// charging, microphones and the display-defect questions are folded into the
+// question named in their relabelled counterpart.
+const removedQuestionIds = new Set([
+  "included_accessories",
+  "included_accessories_work",
+  "device_usable_normally",
+  "battery_replaced",
+  "bluetooth_works",
+  "haptics_work",
+  "wireless_charging_works",
+  "microphones_work",
+  "display_has_no_defects",
+  "built_in_display_has_no_defects",
+]);
+
 const activeQuestions = (questions: AssessmentQuestion[]) =>
-  questions.filter((question) => !temporarilyHiddenQuestionIds.has(question.id));
+  questions.filter((question) => !temporarilyHiddenQuestionIds.has(question.id) && !removedQuestionIds.has(question.id));
 
 const activeSections = (
   sections: AssessmentDefinition["sections"],
@@ -92,7 +111,7 @@ const iPhoneQuestions: AssessmentQuestion[] = [
     id: "severe_physical_or_liquid_damage",
     sectionId: "basics",
     groupId: "basics_readiness",
-    label: "มีความเสียหายรุนแรงหรือร่องรอยโดนน้ำ/ของเหลวหรือไม่?",
+    label: "เครื่องเคยโดนน้ำหรือของเหลว หรือมีร่องรอยของเหลวเข้าเครื่องหรือไม่?",
     help: sellerReportedHelp,
     type: "yes_no_unknown",
     required: true,
@@ -150,19 +169,19 @@ const iPhoneQuestions: AssessmentQuestion[] = [
     options: severityOptions,
   },
 
-  functionQuestion("display_works", "function_display", "หน้าจอแสดงผลได้ปกติหรือไม่?"),
+  functionQuestion("display_works", "function_display", "หน้าจอแสดงผลปกติ ไม่มีเส้น จุดเสีย หรือสีเพี้ยนใช่หรือไม่?"),
   functionQuestion("touchscreen_works", "function_display", "หน้าจอสัมผัสได้ปกติหรือไม่?"),
   functionQuestion("face_id_works", "function_display", "Face ID ใช้งานได้ปกติหรือไม่?", ["face_id"]),
   functionQuestion("touch_id_works", "function_display", "Touch ID ใช้งานได้ปกติหรือไม่?", ["touch_id"]),
   functionQuestion("front_camera_works", "function_cameras_audio", "กล้องหน้าใช้งานได้ปกติหรือไม่?"),
   functionQuestion("rear_camera_works", "function_cameras_audio", "กล้องหลังใช้งานได้ปกติหรือไม่?"),
-  functionQuestion("speakers_work", "function_cameras_audio", "ลำโพงใช้งานได้ปกติหรือไม่?"),
+  functionQuestion("speakers_work", "function_cameras_audio", "ลำโพงและไมโครโฟนใช้งานได้ปกติหรือไม่?"),
   functionQuestion("microphones_work", "function_cameras_audio", "ไมโครโฟนใช้งานได้ปกติหรือไม่?"),
-  functionQuestion("physical_buttons_work", "function_controls", "ปุ่มกดต่าง ๆ ใช้งานได้ปกติหรือไม่?"),
+  functionQuestion("physical_buttons_work", "function_controls", "ปุ่มกดต่าง ๆ และระบบสั่นใช้งานได้ปกติหรือไม่?"),
   functionQuestion("haptics_work", "function_controls", "การสั่นหรือ Haptics ใช้งานได้ปกติหรือไม่?"),
-  functionQuestion("wired_charging_works", "function_controls", "การชาร์จผ่านสายใช้งานได้ปกติหรือไม่?"),
+  functionQuestion("wired_charging_works", "function_controls", "การชาร์จแบตเตอรี่ใช้งานได้ปกติหรือไม่?"),
   functionQuestion("wireless_charging_works", "function_controls", "การชาร์จไร้สายใช้งานได้ปกติหรือไม่?", ["wireless_charging"]),
-  functionQuestion("wifi_works", "function_connectivity", "Wi‑Fi ใช้งานได้ปกติหรือไม่?"),
+  functionQuestion("wifi_works", "function_connectivity", "Wi‑Fi และ Bluetooth ใช้งานได้ปกติหรือไม่?"),
   functionQuestion("bluetooth_works", "function_connectivity", "Bluetooth ใช้งานได้ปกติหรือไม่?"),
   functionQuestion("cellular_works", "function_connectivity", "การเชื่อมต่อเครือข่ายมือถือใช้งานได้ปกติหรือไม่?"),
 
@@ -253,11 +272,7 @@ const iPhoneQuestions: AssessmentQuestion[] = [
     type: "single",
     required: true,
     visibleWhen: {
-      all: [{ questionId: "battery_replaced", operator: "not_equals", optionId: "no" }],
-      any: [
-        { questionId: "battery_replaced", operator: "equals", optionId: "yes" },
-        { questionId: "repaired_components", operator: "includes", optionId: "battery" },
-      ],
+      all: [{ questionId: "repaired_components", operator: "includes", optionId: "battery" }],
     },
     options: [
       { id: "genuine_or_original", label: "แท้หรืออะไหล่เดิมตามที่ผู้ขายทราบ" },
@@ -391,7 +406,7 @@ const runningQuestion = (
 const sharedReadiness: AssessmentQuestion[] = [
   reportedChoice("device_powers_on", "basics", "basics_readiness", "เครื่องเปิดติดหรือไม่?"),
   reportedChoice("device_usable_normally", "basics", "basics_readiness", "โดยรวมเครื่องใช้งานได้ตามปกติหรือไม่?"),
-  reportedChoice("severe_physical_or_liquid_damage", "basics", "basics_readiness", "มีความเสียหายรุนแรงหรือร่องรอยโดนน้ำ/ของเหลวหรือไม่?"),
+  reportedChoice("severe_physical_or_liquid_damage", "basics", "basics_readiness", "เครื่องเคยโดนน้ำหรือของเหลว หรือมีร่องรอยของเหลวเข้าเครื่องหรือไม่?"),
 ];
 
 const sharedRepairQuestions = (hasBuiltInDisplay: boolean, hasBattery: boolean): AssessmentQuestion[] => [
@@ -464,17 +479,17 @@ const tabletQuestions: AssessmentQuestion[] = [
   reportedSeverity("frame_body_condition", "physical_body", "กรอบและตัวเครื่องมีความเสียหายระดับใด?"),
   reportedSeverity("frame_bending_condition", "physical_body", "ตัวเครื่องมีอาการคดหรืองอระดับใด?"),
   reportedSeverity("camera_lens_condition", "physical_body", "เลนส์กล้องมีความเสียหายระดับใด?"),
-  runningQuestion("display_works", "function_display", "หน้าจอแสดงผลได้ปกติหรือไม่?"),
+  runningQuestion("display_works", "function_display", "หน้าจอแสดงผลปกติ ไม่มีเส้น จุดเสีย หรือสีเพี้ยนใช่หรือไม่?"),
   runningQuestion("display_has_no_defects", "function_display", "หน้าจอไม่มีจุดเสีย เส้น หรือสีผิดปกติใช่หรือไม่?"),
   runningQuestion("touchscreen_works", "function_display", "หน้าจอสัมผัสได้ปกติหรือไม่?"),
   runningQuestion("stylus_works", "function_display", "การใช้งานปากกาสัมผัสกับหน้าจอได้ปกติหรือไม่?", ["stylus"]),
   runningQuestion("front_camera_works", "function_media", "กล้องหน้าใช้งานได้ปกติหรือไม่?"),
   runningQuestion("rear_camera_works", "function_media", "กล้องหลังใช้งานได้ปกติหรือไม่?"),
-  runningQuestion("speakers_work", "function_media", "ลำโพงใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("speakers_work", "function_media", "ลำโพงและไมโครโฟนใช้งานได้ปกติหรือไม่?"),
   runningQuestion("microphones_work", "function_media", "ไมโครโฟนใช้งานได้ปกติหรือไม่?"),
   runningQuestion("physical_buttons_work", "function_controls", "ปุ่มกดต่าง ๆ ใช้งานได้ปกติหรือไม่?"),
   runningQuestion("charging_port_works", "function_controls", "พอร์ตชาร์จและการชาร์จผ่านสายใช้งานได้ปกติหรือไม่?"),
-  runningQuestion("wifi_works", "function_connectivity", "Wi‑Fi ใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("wifi_works", "function_connectivity", "Wi‑Fi และ Bluetooth ใช้งานได้ปกติหรือไม่?"),
   runningQuestion("bluetooth_works", "function_connectivity", "Bluetooth ใช้งานได้ปกติหรือไม่?"),
   runningQuestion("cellular_works", "function_connectivity", "การเชื่อมต่อเครือข่ายมือถือใช้งานได้ปกติหรือไม่?", ["cellular"]),
   reportedChoice("battery_holds_charge", "battery", "battery_condition", "แบตเตอรี่เก็บประจุและใช้งานได้ตามปกติหรือไม่?"),
@@ -496,17 +511,17 @@ const macBookQuestions: AssessmentQuestion[] = [
   reportedSeverity("chassis_bending_condition", "physical_body", "ตัวเครื่องมีอาการคดหรืองอระดับใด?"),
   reportedSeverity("hinge_condition", "physical_body", "บานพับมีความเสียหายหรือหลวมระดับใด?"),
   reportedSeverity("keyboard_trackpad_condition", "physical_body", "คีย์บอร์ดและแทร็กแพดมีความเสียหายภายนอกระดับใด?"),
-  runningQuestion("display_works", "function_display", "หน้าจอแสดงผลได้ปกติหรือไม่?"),
+  runningQuestion("display_works", "function_display", "หน้าจอแสดงผลปกติ ไม่มีเส้น จุดเสีย หรือสีเพี้ยนใช่หรือไม่?"),
   runningQuestion("display_has_no_defects", "function_display", "หน้าจอไม่มีจุดเสีย เส้น หรือสีผิดปกติใช่หรือไม่?"),
   runningQuestion("keyboard_works", "function_input", "คีย์บอร์ดทุกปุ่มใช้งานได้ปกติหรือไม่?"),
   runningQuestion("trackpad_works", "function_input", "แทร็กแพดและการคลิกใช้งานได้ปกติหรือไม่?"),
   runningQuestion("touch_id_works", "function_input", "Touch ID ใช้งานได้ปกติหรือไม่?", ["touch_id"]),
   runningQuestion("camera_works", "function_media", "กล้องใช้งานได้ปกติหรือไม่?"),
   runningQuestion("microphones_work", "function_media", "ไมโครโฟนใช้งานได้ปกติหรือไม่?"),
-  runningQuestion("speakers_work", "function_media", "ลำโพงใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("speakers_work", "function_media", "ลำโพงและไมโครโฟนใช้งานได้ปกติหรือไม่?"),
   runningQuestion("charging_works", "function_ports", "เครื่องรับไฟและชาร์จผ่านพอร์ตที่รองรับได้ปกติหรือไม่?"),
   runningQuestion("ports_work", "function_ports", "พอร์ตและช่องเสียบต่าง ๆ ใช้งานได้ปกติหรือไม่?"),
-  runningQuestion("wifi_works", "function_connectivity", "Wi‑Fi ใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("wifi_works", "function_connectivity", "Wi‑Fi และ Bluetooth ใช้งานได้ปกติหรือไม่?"),
   runningQuestion("bluetooth_works", "function_connectivity", "Bluetooth ใช้งานได้ปกติหรือไม่?"),
   reportedChoice("battery_holds_charge", "battery", "battery_condition", "แบตเตอรี่เก็บประจุและใช้งานได้ตามปกติหรือไม่?"),
   reportedChoice("battery_service_warning", "battery", "battery_condition", "มีข้อความแนะนำให้รับบริการแบตเตอรี่หรือคำเตือนหรือไม่?"),
@@ -526,16 +541,16 @@ const desktopQuestions = (builtInDisplay: boolean): AssessmentQuestion[] => [
   reportedSeverity("display_scratch_condition", "physical_display", "หน้าจอในตัวเครื่องมีรอยขีดข่วนระดับใด?", ["built_in_display"]),
   reportedSeverity("case_body_condition", "physical_body", "ตัวเครื่องมีรอยบุบหรือรอยขีดข่วนระดับใด?"),
   reportedSeverity("ports_condition", "physical_body", "พอร์ตและช่องเสียบมีความเสียหายภายนอกระดับใด?"),
-  runningQuestion("built_in_display_works", "function_display", "หน้าจอในตัวเครื่องแสดงผลได้ปกติหรือไม่?", ["built_in_display"]),
+  runningQuestion("built_in_display_works", "function_display", "หน้าจอในตัวเครื่องแสดงผลปกติ ไม่มีเส้น จุดเสีย หรือสีเพี้ยนใช่หรือไม่?", ["built_in_display"]),
   runningQuestion("built_in_display_has_no_defects", "function_display", "หน้าจอในตัวเครื่องไม่มีจุดเสีย เส้น หรือสีผิดปกติใช่หรือไม่?", ["built_in_display"]),
   runningQuestion("external_display_output_works", "function_display", "การส่งภาพออกจอภายนอกใช้งานได้ปกติหรือไม่?"),
   runningQuestion("camera_works", "function_media", "กล้องในตัวเครื่องใช้งานได้ปกติหรือไม่?", ["built_in_camera"]),
   runningQuestion("microphones_work", "function_media", "ไมโครโฟนในตัวเครื่องใช้งานได้ปกติหรือไม่?", ["built_in_microphone"]),
-  runningQuestion("speakers_work", "function_media", "ลำโพงในตัวเครื่องใช้งานได้ปกติหรือไม่?", ["built_in_speakers"]),
+  runningQuestion("speakers_work", "function_media", "ลำโพงและไมโครโฟนในตัวเครื่องใช้งานได้ปกติหรือไม่?", ["built_in_speakers"]),
   runningQuestion("power_stability", "function_power", "เครื่องรับไฟและทำงานต่อเนื่องได้ปกติหรือไม่?"),
   runningQuestion("ports_work", "function_power", "พอร์ตและช่องเสียบต่าง ๆ ใช้งานได้ปกติหรือไม่?"),
   runningQuestion("fan_noise_normal", "function_power", "พัดลมหรือเสียงจากเครื่องทำงานตามปกติหรือไม่?"),
-  runningQuestion("wifi_works", "function_connectivity", "Wi‑Fi ใช้งานได้ปกติหรือไม่?"),
+  runningQuestion("wifi_works", "function_connectivity", "Wi‑Fi และ Bluetooth ใช้งานได้ปกติหรือไม่?"),
   runningQuestion("bluetooth_works", "function_connectivity", "Bluetooth ใช้งานได้ปกติหรือไม่?"),
   ...sharedRepairQuestions(builtInDisplay, false),
   reportedChoice("find_my_enabled", "security", "security_account", "ขณะนี้ Find My เปิดอยู่หรือไม่?"),
@@ -580,7 +595,7 @@ const basicQuestions: AssessmentQuestion[] = [
     id: "severe_physical_or_liquid_damage",
     sectionId: "basics",
     groupId: "basic_readiness",
-    label: "มีความเสียหายรุนแรงหรือร่องรอยโดนน้ำ/ของเหลวหรือไม่?",
+    label: "เครื่องเคยโดนน้ำหรือของเหลว หรือมีร่องรอยของเหลวเข้าเครื่องหรือไม่?",
     help: sellerReportedHelp,
     type: "yes_no_unknown",
     required: true,
@@ -628,8 +643,8 @@ export function getMockAssessment(device: Device): AssessmentDefinition {
 
   if (isIPhone) {
     return {
-      id: "seller_reported_iphone_v2",
-      version: 2,
+      id: "seller_reported_iphone_v3",
+      version: 3,
       coverage: "iphone",
       features: iPhoneFeatures,
       sections: activeSections([
@@ -650,14 +665,14 @@ export function getMockAssessment(device: Device): AssessmentDefinition {
     if (/cellular|\b(?:4g|5g|lte)\b/i.test(device.specs.network ?? "")) features.push("cellular");
     if (device.capabilities?.stylus === true) features.push("stylus");
     return {
-      id: "seller_reported_tablet_v2", version: 2, coverage: "tablet",
+      id: "seller_reported_tablet_v3", version: 3, coverage: "tablet",
       features, sections: activeSections(extendedSections, tabletQuestions), questions: activeQuestions(tabletQuestions),
     };
   }
 
   if (device.category === "laptop" && device.brand === "Apple" && /^MacBook\b/i.test(device.model)) {
     return {
-      id: "seller_reported_macbook_v2", version: 2, coverage: "macbook",
+      id: "seller_reported_macbook_v3", version: 3, coverage: "macbook",
       features: ["touch_id"], sections: activeSections(extendedSections, macBookQuestions), questions: activeQuestions(macBookQuestions),
     };
   }
@@ -665,7 +680,7 @@ export function getMockAssessment(device: Device): AssessmentDefinition {
   if (device.category === "desktop" && device.brand === "Apple") {
     const builtIn = /^iMac\b/i.test(device.model);
     return {
-      id: "seller_reported_mac_desktop_v2", version: 2, coverage: "desktop",
+      id: "seller_reported_mac_desktop_v3", version: 3, coverage: "desktop",
       features: builtIn ? ["built_in_display", "built_in_camera", "built_in_microphone", "built_in_speakers"] : [],
       sections: activeSections(extendedSections.filter((section) => section.id !== "battery"), desktopQuestions(builtIn)),
       questions: activeQuestions(desktopQuestions(builtIn)),
@@ -673,8 +688,8 @@ export function getMockAssessment(device: Device): AssessmentDefinition {
   }
 
   return {
-    id: "seller_reported_basic_v2",
-    version: 2,
+    id: "seller_reported_basic_v3",
+    version: 3,
     coverage: "basic",
     features: [],
     sections: [
@@ -683,6 +698,6 @@ export function getMockAssessment(device: Device): AssessmentDefinition {
       { id: "functionality", label: "การทำงาน" },
       { id: "battery", label: "แบตเตอรี่" },
     ],
-    questions: basicQuestions,
+    questions: activeQuestions(basicQuestions),
   };
 }

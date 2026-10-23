@@ -205,8 +205,10 @@ test("sellers are shown a used-market price, never Astly's lending figure", () =
   assert.equal(usedMarketPrice({ marketPrice: 0, condition: 1 }), 0, "no market price, no offer");
   const cheap = visitor.issuePriceReceipt(JOB, "hash-a", { estimatedPrice: 0, marketPrice: 900, pawnPrice: 540, condition: 0.8 });
   assert.equal(visitor.readPriceReceipt(cheap, JOB, "hash-a").marketPrice, 900, "a receipt holds even when Astly's lending figure snapped to 0");
-  const worthless = visitor.issuePriceReceipt(JOB, "hash-a", { estimatedPrice: 0, marketPrice: 40000, pawnPrice: 24000, condition: 0 });
-  assert.equal(visitor.readPriceReceipt(worthless, JOB, "hash-a"), null, "a result with no used-market price verifies nothing");
+  const scoredZero = visitor.issuePriceReceipt(JOB, "hash-a", { estimatedPrice: 0, marketPrice: 40000, pawnPrice: 24000, condition: 0 });
+  assert.equal(visitor.readPriceReceipt(scoredZero, JOB, "hash-a").marketPrice, 40000, "Atlas scores the condition, so Astly's own score does not void a receipt");
+  const worthless = visitor.issuePriceReceipt(JOB, "hash-a", { estimatedPrice: 0, marketPrice: 0, pawnPrice: 0, condition: 0.9 });
+  assert.equal(visitor.readPriceReceipt(worthless, JOB, "hash-a"), null, "a result with no market price verifies nothing");
 });
 
 test("a valuation saved before used-market prices sends the seller back to Result to refresh it", () => {
@@ -214,7 +216,10 @@ test("a valuation saved before used-market prices sends the seller back to Resul
   const result = { estimatedPrice: 21500, marketPrice: 40000, pawnPrice: 24000, condition: 0.9, confidence: 0.85, loanToValue: 0.6, productName: "", calculation: { marketPrice: "", pawnPrice: "", finalPrice: "" }, completedAt: "2026-10-05T00:00:00.000Z" };
   stored.session.preliminaryValuation = { minPrice: 21500, maxPrice: 21500, currency: "THB", source: "astly", astly: { jobId: JOB, requestKey: "k", condition: { score: 90, deductions: [] }, result } };
   assert.equal(session.hasPreliminaryValuation(stored), false, "Astly's lending figure is not a shown price");
+  // 40,000 × Atlas's condition score 99 (battery health 92%), not Astly's condition 0.9.
   stored.session.preliminaryValuation = { ...stored.session.preliminaryValuation, minPrice: 36000, maxPrice: 36000 };
+  assert.equal(session.hasPreliminaryValuation(stored), false, "a price from Astly's condition score is stale");
+  stored.session.preliminaryValuation = { ...stored.session.preliminaryValuation, minPrice: 39600, maxPrice: 39600 };
   assert.equal(session.hasPreliminaryValuation(stored), true);
   const submitted = { ...stored, session: { ...stored.session, request: { id: "x" }, preliminaryValuation: { ...stored.session.preliminaryValuation, minPrice: 21500, maxPrice: 21500 } } };
   assert.equal(session.hasPreliminaryValuation(submitted), true, "a submitted request keeps the price it was submitted with");
@@ -424,10 +429,11 @@ test("submitting stores a checked request once and confirms it in LINE", async (
   const astlyCall = calls.find((call) => call.url.startsWith("https://www.astly.co/"));
   assert.equal(astlyCall.init.headers["x-demo-visitor"], lineVisitor, "the job is re-read as the visitor that started it");
   const rpc = JSON.parse(calls.find((call) => call.url.endsWith("atlas_submit_sale_request")).init.body).p_payload;
-  assert.equal(rpc.request.estimated_price, 36000, "the used-market price from Astly's result (40,000 at condition 0.9), not the browser's claim");
+  assert.equal(rpc.request.estimated_price, 39600, "Astly's market price (40,000) × Atlas's condition score (99), not the browser's claim");
   assert.equal(rpc.request.estimate_verified, true);
-  assert.equal(rpc.request.condition_score, 90, "a verified row takes the condition from Astly, not the browser");
-  assert.deepEqual(rpc.request.condition_deductions, []);
+  assert.equal(rpc.request.condition_score, 99, "the server scores the validated answers, not the browser (100) or Astly (0.9)");
+  assert.deepEqual(rpc.request.condition_deductions, [{ model: "atlas_condition_v1", group: "battery", points: 0.8 }]);
+  assert.equal(rpc.ingest.session.condition_score, 99);
   assert.equal(rpc.request.contact_phone, "0812345678");
   assert.equal(rpc.request.contact_name, "สมชาย ใจดี");
   assert.equal(rpc.request.contact_address, "99/1 ถนนสุขุมวิท แขวงคลองตัน เขตคลองเตย กรุงเทพฯ", "ขายฝาก stores the address");
@@ -435,7 +441,7 @@ test("submitting stores a checked request once and confirms it in LINE", async (
   assert.equal(rpc.request.product_name, "Apple iPhone 15 Pro");
   assert.equal(rpc.ingest.user.line_user_id, USER, "the user comes from the session token");
   assert.equal(rpc.ingest.session.device_model, "iPhone 15 Pro", "the stored snapshot uses the validated device");
-  assert.equal(rpc.ingest.session.estimated_price, 36000);
+  assert.equal(rpc.ingest.session.estimated_price, 39600);
   const push = calls.find((call) => call.url === "https://api.line.me/v2/bot/message/push");
   assert.equal(push.init.headers["x-line-retry-key"], "869846c9-6bae-4b81-9587-839301b29c9c");
   assert.match(JSON.parse(push.init.body).messages[0].altText, /Apple iPhone 15 Pro/);
@@ -463,7 +469,7 @@ test("submitting stores a checked request once and confirms it in LINE", async (
   await submit({ estimate: { jobId: JOB, priceReceipt: receipt, estimatedPrice: 1 } });
   const byReceipt = JSON.parse(calls.find((call) => call.url.endsWith("atlas_submit_sale_request")).init.body).p_payload;
   assert.equal(byReceipt.request.estimate_verified, true);
-  assert.equal(byReceipt.request.estimated_price, 36900, "a price receipt verifies without asking Astly (41,000 at condition 0.9)");
+  assert.equal(byReceipt.request.estimated_price, 40600, "a price receipt verifies without asking Astly (41,000 × 0.99, to the nearest 100)");
   assert.ok(!calls.some((call) => call.url.startsWith("https://www.astly.co/")));
 
   calls.length = 0;
@@ -474,15 +480,16 @@ test("submitting stores a checked request once and confirms it in LINE", async (
   const unverified = JSON.parse(calls.find((call) => call.url.endsWith("atlas_submit_sale_request")).init.body).p_payload;
   assert.equal(unverified.request.estimate_verified, false, "a ticket for another configuration proves nothing");
   assert.equal(unverified.request.estimated_price, 20000);
+  assert.equal(unverified.request.condition_score, 99, "the condition is scored even when the price is not verified");
   assert.ok(!calls.some((call) => call.url.startsWith("https://www.astly.co/")));
   const unverifiedPush = JSON.parse(calls.find((call) => call.url === "https://api.line.me/v2/bot/message/push").init.body);
   assert.ok(!JSON.stringify(unverifiedPush).includes("฿20,000"), "an unverified price is stored but never sent from the OA");
 
   calls.length = 0;
-  const zero = visitor.issuePriceReceipt(JOB, visitor.estimateInputHash(input), { estimatedPrice: 0, marketPrice: 40000, pawnPrice: 24000, condition: 0 });
+  const zero = visitor.issuePriceReceipt(JOB, visitor.estimateInputHash(input), { estimatedPrice: 0, marketPrice: 0, pawnPrice: 0, condition: 0.9 });
   await submit({ estimate: { jobId: JOB, priceReceipt: zero, estimatedPrice: 99999 } });
   const zeroRow = JSON.parse(calls.find((call) => call.url.endsWith("atlas_submit_sale_request")).init.body).p_payload;
-  assert.equal(zeroRow.request.estimate_verified, false, "a worthless result never marks the browser's price as verified");
+  assert.equal(zeroRow.request.estimate_verified, false, "a result with no market price never marks the browser's price as verified");
 
   // ขายฝาก without a valid address is refused; an outright sale never stores one.
   const fullContact = { fullName: "สมชาย ใจดี", phone: "0812345678", consentToContact: true };

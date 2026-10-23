@@ -61,7 +61,7 @@ test("new assessments have ordered, unique questions and substantial category co
     const groups = definition.questions.map((question) => question.groupId);
     const transitions = groups.filter((group, index) => index === 0 || group !== groups[index - 1]);
     const sectionIds = new Set(definition.sections.map((section) => section.id));
-    assert.ok(ids.length >= 20, selected.id);
+    assert.ok(ids.length >= 15, selected.id);
     assert.equal(new Set(ids).size, ids.length, selected.id);
     assert.equal(new Set(groups).size, transitions.length, selected.id);
     definition.questions.forEach((question, index) => {
@@ -96,7 +96,7 @@ test("MacBook includes integrated input and battery checks; desktop questions fo
     assert.ok(bookIds.includes(id), id);
   }
   const imacIds = ids(imac);
-  for (const id of ["built_in_display_works", "camera_works", "microphones_work", "speakers_work"]) {
+  for (const id of ["built_in_display_works", "camera_works", "speakers_work"]) {
     assert.ok(imacIds.includes(id), id);
   }
   const miniIds = ids(mini);
@@ -127,16 +127,17 @@ test("completion and progress account for visible repair branches", () => {
   }
 });
 
-test("accessory answers are pruned when their parent choice changes", () => {
-  const definition = getMockAssessment(macbook);
-  const withCharger = [
-    { questionId: "included_accessories", value: { kind: "multi", optionIds: ["charger_or_power_cord"] }, answeredAt: "2026-09-28T00:00:00.000Z" },
-    answer("included_accessories_work", "yes"),
+test("questions about the deal, or repeated by another question, are not asked", () => {
+  const removed = [
+    "included_accessories", "included_accessories_work", "device_usable_normally", "battery_replaced", "bluetooth_works",
+    "haptics_work", "wireless_charging_works", "microphones_work", "display_has_no_defects", "built_in_display_has_no_defects",
   ];
-  assert.ok(applicableQuestions(definition, macbook, withCharger).some((question) => question.id === "included_accessories_work"));
-  const noAccessories = [
-    { ...withCharger[0], value: { kind: "multi", optionIds: ["none"] } },
-    withCharger[1],
-  ];
-  assert.ok(!pruneAnswers(definition, macbook, noAccessories).some((item) => item.questionId === "included_accessories_work"));
+  for (const selected of [ipad, cellularIpad, otherTablet, macbook, imac, mini]) {
+    const definition = getMockAssessment(selected);
+    const ids = definition.questions.map((question) => question.id);
+    for (const id of removed) assert.ok(!ids.includes(id), `${selected.id} ${id}`);
+    // A saved answer to a removed question is dropped rather than kept.
+    assert.ok(!pruneAnswers(definition, selected, [answer("device_powers_on", "yes"), answer("bluetooth_works", "no")])
+      .some((item) => item.questionId === "bluetooth_works"));
+  }
 });

@@ -3,6 +3,7 @@ import type { AstlyValuation, EstimateJobAccepted } from "@/domain/astly";
 import { toAstlyConditionChecks, toAstlyEstimateInput } from "@/lib/astly-estimate-input";
 import { getMockAssessment } from "@/adapters/mock/assessment";
 import { usedMarketPrice } from "@/lib/used-price";
+import { conditionScore, type ConditionScore } from "@/lib/condition-score";
 import type { AssessmentAnswer, AssessmentDefinition } from "@/domain/assessment";
 import { answerIdentity, assessmentComplete, isCurrentAssessment, pruneAnswers } from "@/lib/assessment";
 import type { Device, ExpectedPrice, PreliminaryValuation, SessionStatus, TransactionIntent, ValuationSession } from "@/domain/types";
@@ -229,13 +230,28 @@ export function hasPreliminaryValuation(stored: StoredValuationSession | null | 
     hasReachedStage(stored?.session.status, "preliminary_valuation_available") && showsUsedMarketPrice(stored!);
 }
 
-// An Astly valuation saved before sellers were shown used-market prices holds
-// Astly's lending figure; later steps send the seller back to Result, which
-// refreshes it. A submitted request keeps the price it was submitted with.
+/** Atlas's condition score (0–100) for the session's current answers (lib/condition-score.ts), or null before an assessment. */
+export function sessionCondition(stored: StoredValuationSession): ConditionScore | null {
+  const assessment = stored.session.assessment;
+  if (!assessment) return null;
+  return conditionScore(getMockAssessment(stored.device), stored.device, assessment.answers);
+}
+
+/** The price shown for an Astly result: its used-market price × Atlas's condition score. */
+export function shownUsedPrice(stored: StoredValuationSession, result: { marketPrice: number }): number {
+  const condition = sessionCondition(stored);
+  return condition ? usedMarketPrice({ marketPrice: result.marketPrice, condition: condition.score / 100 }) : 0;
+}
+
+// A saved price must still match the current answers: an edit Astly does not
+// price (scratches, repairs...) still changes the condition score, and a
+// valuation saved under an earlier pricing rule is stale too. Later steps send
+// the seller back to Result, which refreshes it. A submitted request keeps the
+// price it was submitted with.
 function showsUsedMarketPrice(stored: StoredValuationSession) {
   const valuation = stored.session.preliminaryValuation;
   if (stored.session.request || valuation?.source !== "astly" || !valuation.astly) return true;
-  return valuation.minPrice === usedMarketPrice(valuation.astly.result);
+  return valuation.minPrice === shownUsedPrice(stored, valuation.astly.result);
 }
 
 export function updateExpectedPrice(amount: number) {

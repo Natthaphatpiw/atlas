@@ -1,4 +1,5 @@
 import type { TransactionIntent } from "@/domain/types";
+import { conditionDeductions, conditionScore } from "@/lib/condition-score";
 import { parseValuationSelection } from "@/lib/estimate-request";
 import { contactErrors, normalizeSellerContact, requiresAddress } from "@/lib/seller-contact";
 import { atlasRpc, updateSaleRequest } from "@/lib/server/atlas-db";
@@ -45,7 +46,7 @@ async function verifiedEstimate(jobId: string | undefined, estimate: Record<stri
   if (!claims || claims.inputHash !== inputHash) return null;
   try {
     const state = await getAstlyEstimate(jobId, claims.visitor);
-    return state.status === "COMPLETED" && state.result && usedMarketPrice(state.result) > 0 ? state.result : null;
+    return state.status === "COMPLETED" && state.result && state.result.marketPrice > 0 ? state.result : null;
   } catch {
     return null;
   }
@@ -94,11 +95,13 @@ export async function POST(request: Request) {
 
   const estimate = isRecord(body.estimate) ? body.estimate : {};
   const jobId = typeof estimate.jobId === "string" && /^[0-9a-f-]{16,64}$/i.test(estimate.jobId) ? estimate.jobId : undefined;
-  // The price stored and quoted is the used-market price the seller was shown (lib/used-price.ts);
-  // a result that yields none is not a verified price.
+  // The price stored and quoted is the used-market price the seller was shown: Astly's market
+  // price × Atlas's condition score for the validated answers (lib/condition-score.ts).
+  const condition = conditionScore(selection.definition, selection.device, selection.answers);
   const result = await verifiedEstimate(jobId, estimate, estimateInputHash(selection.input));
-  const verified = result && usedMarketPrice(result) > 0 ? result : null;
-  const estimatedPrice = verified ? usedMarketPrice(verified) : price(estimate.estimatedPrice);
+  const usedPrice = result ? usedMarketPrice({ marketPrice: result.marketPrice, condition: condition.score / 100 }) : 0;
+  const verified = usedPrice > 0 ? result : null;
+  const estimatedPrice = verified ? usedPrice : price(estimate.estimatedPrice);
   if (!estimatedPrice) return reject(400, "invalid_request");
   // The app requires the Atlas OA as a friend before use; enforce it here too. Unknown (no token) passes.
   if (await friendStatusOf(session) === false) return reject(403, "not_friend");
@@ -107,14 +110,8 @@ export async function POST(request: Request) {
   const productName = device.model.toLowerCase().startsWith(device.brand.toLowerCase()) ? device.model : `${device.brand} ${device.model}`;
   const productDetails = formatDeviceSpecs(device);
   const specs = { ...(device.variant ? { variant: device.variant } : {}), ...device.specs } as Record<string, string>;
-  // A verified price comes with Atlas's own reading of the condition: Astly's
-  // multiplier and the checklist faults derived from the validated answers.
-  const condition = verified
-    ? {
-      condition_score: Math.round(Math.min(1, Math.max(0, verified.condition)) * 100),
-      condition_deductions: Object.entries(selection.input.conditionChecks).filter(([, fault]) => fault).map(([key]) => ({ key })),
-    }
-    : { condition_score: snapshot.condition_score, condition_deductions: snapshot.condition_deductions };
+  // The condition is always the server's own score of the validated answers, not the browser's.
+  const conditionFields = { condition_score: condition.score, condition_deductions: conditionDeductions(condition) };
   // Server-checked values replace the browser's in the stored snapshot.
   const sessionSnapshot = {
     ...snapshot,
@@ -125,7 +122,8 @@ export async function POST(request: Request) {
     device_specs: specs,
     expected_price: expectedPrice,
     transaction_intent: intent,
-    ...(verified ? { estimated_price: estimatedPrice, market_price: verified.marketPrice, pawn_price: verified.pawnPrice, ...condition } : {}),
+    ...conditionFields,
+    ...(verified ? { estimated_price: estimatedPrice, market_price: verified.marketPrice, pawn_price: verified.pawnPrice } : {}),
   };
 
   let row: SubmittedRow | undefined;
@@ -143,7 +141,7 @@ export async function POST(request: Request) {
         device_brand: device.brand,
         device_model: device.model,
         device_specs: specs,
-        ...condition,
+        ...conditionFields,
         astly_job_id: jobId,
         estimate_verified: Boolean(verified),
         estimated_price: estimatedPrice,

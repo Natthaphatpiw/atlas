@@ -109,15 +109,15 @@ test("conditional branches prune invalid parents and cascade removed answers", (
   assert.deepEqual(assessment.pruneAnswers(definition, iphone, invalidParent), []);
 });
 
-test("battery provenance respects explicit battery status and prunes stale branches", () => {
+test("battery provenance follows the repaired battery and prunes stale branches", () => {
   const applicableIds = (answers) => assessment.applicableQuestions(definition, iphone, answers).map((question) => question.id);
-  const repairedBattery = [choice("repair_or_parts_replaced", "yes"), answer("repaired_components", { kind: "multi", optionIds: ["battery"] })];
-  assert.ok(!applicableIds([choice("battery_replaced", "no"), ...repairedBattery]).includes("battery_replacement_provenance"));
-  assert.ok(applicableIds([choice("battery_replaced", "yes"), choice("repair_or_parts_replaced", "no")]).includes("battery_replacement_provenance"));
-  assert.ok(applicableIds([choice("battery_replaced", "unknown"), ...repairedBattery]).includes("battery_replacement_provenance"));
+  const repaired = (optionIds) => [choice("repair_or_parts_replaced", "yes"), answer("repaired_components", { kind: "multi", optionIds })];
+  assert.ok(applicableIds(repaired(["battery"])).includes("battery_replacement_provenance"));
+  assert.ok(!applicableIds(repaired(["display"])).includes("battery_replacement_provenance"));
+  assert.ok(!applicableIds([choice("repair_or_parts_replaced", "no")]).includes("battery_replacement_provenance"));
 
-  const previous = [choice("battery_replaced", "yes"), ...repairedBattery, choice("battery_replacement_provenance", "used")];
-  const changed = [choice("battery_replaced", "no"), ...repairedBattery, choice("battery_replacement_provenance", "used")];
+  const previous = [...repaired(["battery"]), choice("battery_replacement_provenance", "used")];
+  const changed = [...repaired(["display"]), choice("battery_replacement_provenance", "used")];
   assert.ok(assessment.pruneAnswers(definition, iphone, previous).some((item) => item.questionId === "battery_replacement_provenance"));
   assert.ok(!assessment.pruneAnswers(definition, iphone, changed).some((item) => item.questionId === "battery_replacement_provenance"));
 });
@@ -161,7 +161,9 @@ test("applies feature and category-specific questions and requires every visible
   const basic = getMockAssessment(samsung);
   const samsungIds = assessment.applicableQuestions(basic, samsung, []).map((question) => question.id);
   assert.ok(iphoneIds.includes("face_id_works"));
-  assert.ok(iphoneIds.includes("wireless_charging_works"));
+  // Wireless charging is part of the charging question, not a question of its own.
+  assert.ok(iphoneIds.includes("wired_charging_works"));
+  assert.ok(!iphoneIds.includes("wireless_charging_works"));
   assert.ok(!iphoneIds.includes("touch_id_works"));
   assert.ok(!assessment.applicableQuestions(definition, iphone, [choice("device_powers_on", "no")]).some((question) => question.id === "face_id_works"));
   assert.deepEqual(samsungIds, ["device_powers_on", "severe_physical_or_liquid_damage", "display_glass_condition", "exterior_condition", "battery_degraded"]);
@@ -222,7 +224,7 @@ test("unchanged reviewed answers preserve later status; a changed answer clears 
 
 test("mock valuation exposes the assessment, retains fixed range, and rejects assessment pricing", async () => {
   const service = new MockValuationService();
-  assert.equal((await service.getDeviceAssessment(iphone)).id, "seller_reported_iphone_v2");
+  assert.equal((await service.getDeviceAssessment(iphone)).id, "seller_reported_iphone_v3");
   assert.deepEqual(await service.getMockValuationResult({}), { minPrice: 24500, maxPrice: 27000, currency: "THB" });
   await assert.rejects(() => service.estimateValue({ assessment: {}, conditionAnswers: [] }), /not implemented/);
 });
@@ -242,15 +244,14 @@ test("branch removal prunes repairs, power, battery, and feature answers without
   assert.deepEqual(assessment.pruneAnswers(definition, iphone, [...poweredOff, choice("device_powers_on", "yes")]).map((item) => item.questionId), ["device_powers_on"]);
 
   const batteryNo = assessment.pruneAnswers(definition, iphone, [
-    choice("battery_replaced", "no"),
     choice("repair_or_parts_replaced", "yes"),
-    answer("repaired_components", { kind: "multi", optionIds: ["battery"] }),
+    answer("repaired_components", { kind: "multi", optionIds: ["display"] }),
     choice("battery_replacement_provenance", "used"),
   ]);
   assert.ok(!batteryNo.some((item) => item.questionId === "battery_replacement_provenance"));
-  assert.ok(!assessment.pruneAnswers(definition, iphone, [...batteryNo, choice("battery_replaced", "yes")]).some((item) => item.questionId === "battery_replacement_provenance"));
+  assert.ok(!assessment.pruneAnswers(definition, iphone, [...batteryNo, answer("repaired_components", { kind: "multi", optionIds: ["battery"] })]).some((item) => item.questionId === "battery_replacement_provenance"));
 
-  const featureAnswers = [choice("device_powers_on", "yes"), choice("face_id_works", "yes"), choice("wireless_charging_works", "yes")];
+  const featureAnswers = [choice("device_powers_on", "yes"), choice("face_id_works", "yes")];
   const featureless = { ...definition, features: [] };
   const removedFeatures = assessment.pruneAnswers(featureless, iphone, featureAnswers);
   assert.deepEqual(removedFeatures.map((item) => item.questionId), ["device_powers_on"]);
@@ -344,8 +345,8 @@ test("semantic answer identity preserves downstream progress across ordering and
 test("basic fallback covers Astly's checklist with stable machine option IDs for unsupported phones", () => {
   for (const device of [samsung]) {
     const basic = getMockAssessment(device);
-    assert.equal(basic.id, "seller_reported_basic_v2");
-    assert.equal(basic.version, 2);
+    assert.equal(basic.id, "seller_reported_basic_v3");
+    assert.equal(basic.version, 3);
     assert.deepEqual(basic.questions.map((question) => question.id), [
       "device_powers_on", "severe_physical_or_liquid_damage", "display_glass_condition", "exterior_condition",
       "display_works", "touchscreen_works", "cameras_work", "buttons_ports_work", "battery_degraded",
