@@ -31,7 +31,7 @@ The web flow at `/` and `/valuation/*` is unchanged: it keeps the local mock req
    - Add friend option: **On (Aggressive)**, so LINE offers the Atlas OA during the user's first consent
    - Scan QR: off
 3. **Link the OA** (LINE Login channel → Basic settings → Linked LINE Official Account → Atlas `@490jvnda`). Required for the add-friend option, `liff.getFriendship()` and LIFF's add-friend dialog.
-4. **Messaging API channel**: issue a long-lived channel access token for `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`. Atlas needs no webhook and does not use the channel secret.
+4. **Messaging API channel**: issue a long-lived channel access token for `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`. Atlas itself needs no webhook and does not use the channel secret; the webhook belongs to Astly for screened users (see [Astly for screened users](#astly-for-screened-users)).
 
 Campaign links: add `src` or `utm_*` parameters to the LIFF URL, for example `https://liff.line.me/2011873191-6AQ7I8vq?src=facebook`. LIFF forwards them to the endpoint, and they are recorded on the `liff_opened` event.
 
@@ -59,7 +59,7 @@ Run [`database/atlas_liff.sql`](database/atlas_liff.sql) once in the Astly Supab
 | `atlas_line_users` | LINE user: display name, picture, friend status, visit count, first/last seen |
 | `atlas_valuation_sessions` | Valuation attempt, submitted or not: device, assessment answers (each with its answer time), Atlas condition score (`condition_deductions` holds each group's points and the model version) and prices, asking price, sale type, furthest stage, and the first time each stage was reached |
 | `atlas_liff_events` | Event (see below), with its visit, valuation, step, time and active duration |
-| `atlas_sale_requests` | Submitted request: reference, contact (plus `contact_address` and `contact_postcode` for ขายฝาก only), consent time, product, verified or reported prices, asking price, sale type, follow-up `status` (`new` → `contacted` → `qualified` / `closed` / `rejected`) and LINE push outcome |
+| `atlas_sale_requests` | Submitted request: reference, contact (plus `contact_address` and `contact_postcode` for ขายฝาก only), consent time, product, verified or reported prices, asking price, sale type, follow-up `status` (`new` → `contacted` → `qualified` / `closed` / `rejected`; `qualified` opens Astly to the user, see below) and LINE push outcome |
 
 Views for analysis:
 
@@ -70,6 +70,45 @@ Views for analysis:
 | `atlas_v_daily_funnel` | Per day (Bangkok): LIFF opens, users, and how many valuations reached each stage, by sale type |
 
 Writes go through two functions, `atlas_ingest_liff_events(jsonb)` and `atlas_submit_sale_request(jsonb)`, each one transaction. A session is frozen once its request is submitted: later snapshots (a delayed batch) no longer change it. Text is stripped of NUL characters before it is written, and a batch the database rejects is dropped rather than resent.
+
+## Astly for screened users
+
+A user Atlas screens can use Astly's full loan flow inside the Atlas OA, without adding Astly's OA:
+
+- register
+- eKYC
+- estimate and loan request
+- investor offer
+- contract, delivery or drop-off
+- interest, redemption and penalties
+
+It is Astly's app and database, reached through the Atlas LINE channel. Astly's [`docs/ATLAS_LINE_CHANNEL.md`](https://github.com/Natthaphatpiw/pawn360/blob/main/docs/ATLAS_LINE_CHANNEL.md) describes the Astly side.
+
+1. **Screen.** In the Supabase table editor, set one of the user's requests to `qualified`:
+
+   ```sql
+   update atlas_sale_requests set status = 'qualified' where reference = 'ATL-XXXXXXXX';
+   ```
+
+2. **Invite.** Within 5 minutes Astly's cron pushes the user an invitation with a **เริ่มใช้งาน** button through the Atlas OA. It sends one invitation per user and logs it in `atlas_astly_invites`.
+3. **Use.** The button opens Astly in a LIFF app on Astly's own LINE Login channel in this LINE provider, so the user keeps the same LINE user ID as in this app.
+   - On registration Astly records the pawner with `line_channel = 'ATLAS'` and links the Astly member menu to that user only.
+   - Everyone else keeps the Atlas OA's own menu.
+   - Astly's cards and reminders arrive in the Atlas OA, and their buttons go to Astly's webhook.
+   - Investors are matched through Astly's investor OA as usual.
+
+Access is checked on every Astly request: the user needs a `qualified` request, or an existing Astly registration through Atlas. Unscreened users who open the link see that they are not yet eligible. A user who already has an Astly account through Astly's own OA cannot register a second one with the same national ID.
+
+Setup lives on the Astly side (Astly's doc lists the exact steps):
+
+| Where | What |
+| --- | --- |
+| Atlas's LINE provider | A new LINE Login channel for Astly, linked to the Atlas OA, with one LIFF app: endpoint `https://www.astly.co/?ch=atlas` (Full; `openid`, `profile`). A separate channel keeps ID tokens issued to this app from being valid at Astly. |
+| Messaging API channel `2011873159` | Webhook URL `https://www.astly.co/api/webhook/atlas`, Use webhook on |
+| Astly's Vercel project | `LINE_LOGIN_CHANNEL_ID_ATLAS` (that new channel), `LINE_CHANNEL_ACCESS_TOKEN_ATLAS` (the same OA token as Atlas's `LINE_MESSAGING_CHANNEL_ACCESS_TOKEN`), `LINE_CHANNEL_SECRET_ATLAS`, `NEXT_PUBLIC_LIFF_ID_ATLAS`, and optionally `LINE_RICH_MENU_ID_ATLAS_PAWNER` |
+| Astly Supabase | `database/migrations/2026_11_01_atlas_line_channel.sql` (needs this repo's `atlas_liff.sql` first) |
+
+Atlas's own LIFF app, events and confirmation messages are unchanged.
 
 ## Recorded events
 

@@ -88,6 +88,8 @@ create index if not exists atlas_liff_events_name_idx on public.atlas_liff_event
 create index if not exists atlas_liff_events_visit_idx on public.atlas_liff_events (visit_id, occurred_at);
 
 -- A request the user submitted ("interested"): at most one per valuation.
+-- status is the team's follow-up; 'qualified' also opens Astly's loan flow to
+-- the user inside the Atlas OA (LINE_LIFF.md, "Astly for screened users").
 -- estimated_price is the used-market price the seller was shown (Astly's
 -- market_price x Atlas's condition_score / 100, nearest 100 THB); market_price
 -- and pawn_price are Astly's figures. condition_score is scored by Atlas's
